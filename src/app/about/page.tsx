@@ -28,7 +28,7 @@ export default function AboutPage() {
       </div>
 
       {/* Mission */}
-      <div className="bg-white border border-border rounded-3xl p-6 sm:p-8 shadow-card space-y-4">
+      <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-4">
         <h2 className="text-xl font-bold text-slate-900">
           Our Purpose
         </h2>
@@ -41,7 +41,7 @@ export default function AboutPage() {
       </div>
 
       {/* Product Ecosystem & Distinction */}
-      <div className="bg-blue-50/50 border border-blue-200/80 rounded-3xl p-6 sm:p-8 space-y-6">
+      <div className="bg-blue-50/50 border border-blue-200/80 rounded-2xl p-6 sm:p-8 space-y-6">
         <div className="space-y-2">
           <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-100/70 px-2.5 py-1 rounded-full border border-blue-200">
             Ecosystem Architecture
@@ -55,7 +55,7 @@ export default function AboutPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-2xs space-y-2">
+          <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-subtle space-y-2">
             <div className="flex items-center gap-2 font-bold text-blue-700 text-sm">
               <Zap className="w-4 h-4" />
               <span>FlarePrint Tools (Digital)</span>
@@ -65,7 +65,7 @@ export default function AboutPage() {
             </p>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-blue-100 shadow-2xs space-y-2">
+          <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-subtle space-y-2">
             <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
               <Printer className="w-4 h-4 text-slate-500" />
               <span>FlarePrint APVM (Physical)</span>
@@ -83,8 +83,8 @@ export default function AboutPage() {
 
       {/* Core Principles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-border shadow-card space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-6 rounded-2xl border border-border shadow-subtle space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <h3 className="font-bold text-base text-slate-900">Browser-First Privacy</h3>
@@ -93,8 +93,8 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-border shadow-card space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-6 rounded-2xl border border-border shadow-subtle space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
             <Zap className="w-5 h-5" />
           </div>
           <h3 className="font-bold text-base text-slate-900">High Performance</h3>
@@ -103,8 +103,8 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-border shadow-card space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+        <div className="bg-white p-6 rounded-2xl border border-border shadow-subtle space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
             <Layers className="w-5 h-5" />
           </div>
           <h3 className="font-bold text-base text-slate-900">No Account Friction</h3>

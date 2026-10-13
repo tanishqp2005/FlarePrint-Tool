@@ -19,21 +19,21 @@ export default function PrivacyPage() {
       </div>
 
       {/* Primary Highlight */}
-      <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-3xl p-6 sm:p-8 space-y-3">
+      <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-6 sm:p-8 space-y-3">
         <h2 className="text-lg font-bold text-emerald-950 flex items-center gap-2">
           <Lock className="w-5 h-5 text-emerald-700" />
           Our Core Privacy Commitment
         </h2>
-        <p className="text-emerald-900 leading-relaxed text-sm sm:text-base font-semibold">
+        <p className="text-emerald-900 leading-relaxed text-sm sm:text-base font-medium">
           Files stay in your browser during processing and are not uploaded to our servers.
         </p>
-        <p className="text-xs sm:text-sm text-emerald-800 leading-relaxed font-normal">
+        <p className="text-xs sm:text-sm text-emerald-800 leading-relaxed">
           FlarePrint Tools utilizes a client-side-first processing architecture. When you compress, resize, convert, merge, or split a document, the actual computation is executed locally inside your web browser using HTML5 Canvas and JavaScript WebAssembly libraries.
         </p>
       </div>
 
       {/* Key Sections */}
-      <div className="bg-white border border-border rounded-3xl p-6 sm:p-8 shadow-card space-y-8">
+      <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-8">
         <section className="space-y-3">
           <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Cpu className="w-5 h-5 text-blue-600" />

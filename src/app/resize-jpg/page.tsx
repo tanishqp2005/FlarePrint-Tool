@@ -6,7 +6,7 @@ import { Dropzone } from "@/components/Dropzone";
 import { ResultCard } from "@/components/ResultCard";
 import { formatBytes, downloadBlob } from "@/lib/utils";
 import { getImageDimensions, resizeImage } from "@/lib/image-utils";
-import { Scaling, Lock, Unlock, Loader2, Sparkles, SlidersHorizontal } from "lucide-react";
+import { Scaling, Lock, Unlock, Loader2, Sparkles } from "lucide-react";
 
 interface PresetDimension {
   label: string;
@@ -132,27 +132,26 @@ export default function ResizeJpgPage() {
     <ToolLayout
       category="Compress & Resize"
       title="Resize JPG"
-      description="Change image dimensions with bicubic resampling, aspect-ratio preservation, and quick scaling presets."
+      description="Change image dimensions with high-quality bicubic resampling and instant aspect-ratio calculation."
     >
-      {/* 1. Upload Dropzone */}
+      {/* 1. Dropzone */}
       {!file && !result && (
         <Dropzone
           accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png"
-          title="Drop your image here"
-          buttonText="Browse Image"
-          helperText="JPG, JPEG and PNG images up to 25 MB"
-          formatBadges={["JPG", "PNG"]}
+          title="Drop your JPG or PNG here"
+          buttonText="Choose Image"
+          helperText="JPG, JPEG, and PNG images up to 25 MB"
           onFilesSelected={handleFilesSelected}
         />
       )}
 
       {/* 2. File Selected - Configuration */}
       {file && !result && (
-        <div className="bg-white border border-border rounded-3xl p-6 sm:p-8 shadow-card space-y-6 max-w-xl mx-auto">
+        <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-6 max-w-xl mx-auto">
           {/* File summary & thumbnail */}
-          <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+          <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
             {previewUrl && (
-              <div className="w-14 h-14 rounded-xl overflow-hidden border border-slate-200 bg-slate-200 flex-shrink-0">
+              <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-200 flex-shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewUrl}
@@ -162,17 +161,17 @@ export default function ResizeJpgPage() {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h3 className="font-bold text-sm text-slate-900 truncate">
+              <h3 className="font-semibold text-sm text-slate-800 truncate">
                 {file.name}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Original: <span className="font-semibold text-slate-800">{originalWidth} × {originalHeight} px</span> • {formatBytes(file.size)}
+                Original: <span className="font-medium text-slate-700">{originalWidth} × {originalHeight} px</span> • {formatBytes(file.size)}
               </p>
             </div>
             <button
               onClick={handleReset}
               disabled={processing}
-              className="text-xs text-slate-400 hover:text-red-600 font-semibold px-2 py-1 rounded-md transition-colors"
+              className="text-xs text-slate-400 hover:text-red-600 font-medium transition-colors"
             >
               Change
             </button>
@@ -181,27 +180,26 @@ export default function ResizeJpgPage() {
           {/* Dimension Controls */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                <SlidersHorizontal className="w-4 h-4 text-blue-600" />
-                Target Dimensions
+              <label className="text-sm font-bold text-slate-800">
+                Custom Dimensions
               </label>
               <button
                 type="button"
                 onClick={() => setLockAspectRatio(!lockAspectRatio)}
-                className={`text-xs font-semibold px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all ${
+                className={`text-xs font-semibold px-2.5 py-1 rounded-md border flex items-center gap-1.5 transition-colors ${
                   lockAspectRatio
                     ? "bg-blue-50 text-blue-700 border-blue-200"
                     : "bg-slate-100 text-slate-600 border-slate-200"
                 }`}
               >
-                {lockAspectRatio ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-                <span>Lock ratio</span>
+                {lockAspectRatio ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                <span>Maintain aspect ratio</span>
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-500 block mb-1">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">
                   Width (px)
                 </label>
                 <input
@@ -210,12 +208,12 @@ export default function ResizeJpgPage() {
                   max="10000"
                   value={width || ""}
                   onChange={(e) => handleWidthChange(parseInt(e.target.value) || 0)}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 font-mono"
+                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 block mb-1">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">
                   Height (px)
                 </label>
                 <input
@@ -224,12 +222,12 @@ export default function ResizeJpgPage() {
                   max="10000"
                   value={height || ""}
                   onChange={(e) => handleHeightChange(parseInt(e.target.value) || 0)}
-                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 font-mono"
+                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600"
                 />
               </div>
             </div>
 
-            {/* Quick Scale Pills */}
+            {/* Quick Scale Buttons */}
             <div>
               <span className="text-xs text-slate-500 font-medium block mb-1.5">
                 Quick Scale
@@ -240,7 +238,7 @@ export default function ResizeJpgPage() {
                     key={pct}
                     type="button"
                     onClick={() => handleScalePercent(pct)}
-                    className="py-1.5 text-xs font-bold rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 text-slate-700 transition-colors shadow-2xs"
+                    className="py-1.5 text-xs font-semibold rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors"
                   >
                     {pct}%
                   </button>
@@ -248,7 +246,7 @@ export default function ResizeJpgPage() {
               </div>
             </div>
 
-            {/* Common Presets */}
+            {/* Common presets */}
             <div>
               <span className="text-xs text-slate-500 font-medium block mb-1.5">
                 Common Presets
@@ -259,7 +257,7 @@ export default function ResizeJpgPage() {
                     key={preset.label}
                     type="button"
                     onClick={() => handlePresetSelect(preset)}
-                    className="py-2 px-3 text-xs font-medium rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 text-slate-700 text-left transition-colors truncate shadow-2xs"
+                    className="py-2 px-3 text-xs font-medium rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 text-slate-700 text-left transition-colors truncate"
                   >
                     {preset.label}
                   </button>
@@ -269,7 +267,7 @@ export default function ResizeJpgPage() {
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs">
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
               {error}
             </div>
           )}
@@ -278,7 +276,7 @@ export default function ResizeJpgPage() {
           <button
             onClick={handleResize}
             disabled={processing || width <= 0 || height <= 0}
-            className="w-full py-3.5 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-base shadow-button hover:shadow-button-hover transition-all flex items-center justify-center gap-2 group"
+            className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm sm:text-base shadow-button hover:shadow-button-hover transition-all flex items-center justify-center gap-2"
           >
             {processing ? (
               <>
@@ -287,7 +285,7 @@ export default function ResizeJpgPage() {
               </>
             ) : (
               <>
-                <Scaling className="w-4 h-4 transition-transform group-hover:scale-110" />
+                <Scaling className="w-4 h-4" />
                 <span>Resize Image to {width} × {height} px</span>
               </>
             )}
@@ -299,27 +297,26 @@ export default function ResizeJpgPage() {
       {result && file && (
         <div className="space-y-6">
           <ResultCard
-            title="Image resized"
+            title="Image Resized"
             filename={`${file.name.replace(/\.[^/.]+$/, "")}_${result.width}x${result.height}`}
             originalSize={file.size}
             resultSize={result.size}
             onDownload={handleDownload}
             onReset={handleReset}
-            downloadButtonText="Download Resized Image"
             resetButtonText="Resize another image"
             extraStats={[
-              { label: "Original Dims", value: `${originalWidth}×${originalHeight} px` },
-              { label: "New Dims", value: `${result.width}×${result.height} px` },
+              { label: "Original Dims", value: `${originalWidth}×${originalHeight}` },
+              { label: "New Dims", value: `${result.width}×${result.height}` },
             ]}
           />
 
           {/* Resized image preview */}
-          <div className="max-w-xl mx-auto bg-white border border-border rounded-3xl p-5 shadow-card space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+          <div className="max-w-xl mx-auto bg-white border border-border rounded-2xl p-5 shadow-card space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-blue-600" />
               Resized Image Preview
             </h4>
-            <div className="rounded-2xl overflow-hidden border border-slate-200 max-h-80 flex items-center justify-center bg-slate-900/5">
+            <div className="rounded-xl overflow-hidden border border-slate-200 max-h-80 flex items-center justify-center bg-slate-900/5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={result.previewUrl}
@@ -327,7 +324,7 @@ export default function ResizeJpgPage() {
                 className="max-h-80 max-w-full object-contain"
               />
             </div>
-            <p className="text-[11px] text-slate-400 text-center font-mono">
+            <p className="text-[11px] text-slate-400 text-center">
               Rendered at {result.width} × {result.height} px • {formatBytes(result.size)}
             </p>
           </div>
