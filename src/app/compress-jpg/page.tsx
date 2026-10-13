@@ -5,8 +5,19 @@ import { ToolLayout } from "@/components/ToolLayout";
 import { Dropzone } from "@/components/Dropzone";
 import { ResultCard } from "@/components/ResultCard";
 import { formatBytes, downloadBlob } from "@/lib/utils";
-import { compressJpgToTarget, CompressImageResult } from "@/lib/image-utils";
-import { ImageIcon, Loader2, Settings2, Eye } from "lucide-react";
+import {
+  compressJpgToTarget,
+  CompressImageResult,
+  JpgCompressionMode,
+} from "@/lib/image-utils";
+import {
+  ImageIcon,
+  Loader2,
+  Settings2,
+  Eye,
+  Layers,
+  AlertCircle,
+} from "lucide-react";
 
 interface Preset {
   label: string;
@@ -28,9 +39,11 @@ export default function CompressJpgPage() {
   const [isCustom, setIsCustom] = useState(false);
   const [customValue, setCustomValue] = useState<string>("100");
   const [customUnit, setCustomUnit] = useState<"KB" | "MB">("KB");
+  const [mode, setMode] = useState<JpgCompressionMode>("balanced");
 
   const [processing, setProcessing] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
+  const [progressStatus, setProgressStatus] = useState("Optimizing quality & file size...");
   const [result, setResult] = useState<CompressImageResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,16 +66,18 @@ export default function CompressJpgPage() {
     return customUnit === "KB" ? val * 1024 : val * 1024 * 1024;
   };
 
-  const handleCompress = async () => {
+  const executeCompression = async (targetMode: JpgCompressionMode) => {
     if (!file) return;
     setProcessing(true);
     setError(null);
     setProgressPercent(10);
+    setProgressStatus("Preparing image...");
 
     try {
       const target = getTargetSizeBytes();
-      const res = await compressJpgToTarget(file, target, (p) => {
+      const res = await compressJpgToTarget(file, target, targetMode, (p, status) => {
         setProgressPercent(p);
+        if (status) setProgressStatus(status);
       });
       setResult(res);
     } catch (err: any) {
@@ -70,6 +85,13 @@ export default function CompressJpgPage() {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const handleCompress = () => executeCompression(mode);
+
+  const handleRetryWithMaximum = () => {
+    setMode("maximum");
+    executeCompression("maximum");
   };
 
   const handleDownload = () => {
@@ -204,13 +226,76 @@ export default function CompressJpgPage() {
             )}
           </div>
 
+          {/* Compression Mode Selector */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-blue-600" />
+              Compression Mode
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() => setMode("balanced")}
+                className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center ${
+                  mode === "balanced"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-button"
+                    : "bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                }`}
+              >
+                Balanced
+              </button>
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() => setMode("strong")}
+                className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center ${
+                  mode === "strong"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-button"
+                    : "bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                }`}
+              >
+                Strong
+              </button>
+              <button
+                type="button"
+                disabled={processing}
+                onClick={() => setMode("maximum")}
+                className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center ${
+                  mode === "maximum"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-button"
+                    : "bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                }`}
+              >
+                Maximum
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              {mode === "balanced" &&
+                "Preserves high visual clarity. Tries quality optimization first, with modest dimension scaling if required."}
+              {mode === "strong" &&
+                "Aggressive compression. Progressively scales dimensions and adjusts quality to reach smaller file sizes."}
+              {mode === "maximum" &&
+                "Prioritizes meeting tiny targets (e.g. 50 KB or less). May apply stronger scaling with visible compression."}
+            </p>
+
+            {mode === "maximum" && (
+              <div className="flex items-start gap-1.5 p-2.5 rounded-lg bg-amber-50/80 border border-amber-200/70 text-[11px] text-amber-800 leading-relaxed">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <span>
+                  Notice: Maximum mode will reduce dimensions and quality aggressively to satisfy very small target file sizes.
+                </span>
+              </div>
+            )}
+          </div>
+
           {/* Processing state */}
           {processing && (
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
-                <span className="flex items-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                  Optimizing quality & file size...
+                <span className="flex items-center gap-1.5 truncate max-w-[80%]">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" />
+                  <span className="truncate">{progressStatus}</span>
                 </span>
                 <span>{progressPercent}%</span>
               </div>
@@ -246,19 +331,31 @@ export default function CompressJpgPage() {
       {result && file && (
         <div className="space-y-6">
           <ResultCard
-            title="Image Compressed"
+            title={result.targetAchieved ? "Image Compressed" : "Optimization Completed"}
             filename={file.name}
             originalSize={result.originalSize}
             resultSize={result.resultSize}
             reductionPercent={result.reductionPercent}
             targetSize={result.targetSize}
             targetAchieved={result.targetAchieved}
+            methodUsed={result.methodUsed}
+            recommendation={result.recommendation}
+            warningNote={result.warningNote}
             onDownload={handleDownload}
             onReset={handleReset}
             resetButtonText="Compress another image"
+            onAction={
+              !result.targetAchieved && mode !== "maximum"
+                ? handleRetryWithMaximum
+                : undefined
+            }
+            actionText="Try Maximum Compression Mode"
             extraStats={[
               { label: "Target", value: formatBytes(result.targetSize) },
-              { label: "Dimensions", value: `${result.width}×${result.height}` },
+              {
+                label: "Dimensions",
+                value: `${result.width}×${result.height}`,
+              },
             ]}
           />
 
@@ -277,7 +374,7 @@ export default function CompressJpgPage() {
               />
             </div>
             <p className="text-[11px] text-slate-400 text-center">
-              Output: {result.width} × {result.height} px • {formatBytes(result.resultSize)}
+              Original: {result.originalWidth} × {result.originalHeight} px • Output: {result.width} × {result.height} px ({formatBytes(result.resultSize)})
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName, PDFNumber, PDFRawStream } from "pdf-lib";
 import { formatBytes } from "./utils";
 
 // Configure PDF.js worker dynamically in browser
@@ -9,6 +9,8 @@ export async function getPdfJs() {
   }
   return pdfjs;
 }
+
+export type PdfCompressionMode = "balanced" | "strong" | "maximum";
 
 export interface SplitResultFile {
   filename: string;
@@ -24,7 +26,12 @@ export interface CompressPdfResult {
   reductionPercent: number;
   targetAchieved: boolean;
   totalPages: number;
+  methodUsed: string;
+  isRasterized: boolean;
+  dpi?: number;
+  previewUrl?: string;
   recommendation?: string;
+  warningNote?: string;
 }
 
 export interface ImageToPdfOptions {
@@ -254,21 +261,144 @@ export async function convertImagesToPdf(
 }
 
 /**
- * Realistic, honest PDF Compression
+ * Re-encodes raw JPEG bytes using HTML Canvas at a lower quality or scaled dimension
+ */
+async function reencodeJpegBytes(
+  jpegBytes: Uint8Array,
+  quality: number,
+  maxDimension: number = 2000
+): Promise<Uint8Array | null> {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const blob = new Blob([jpegBytes as any], { type: "image/jpeg" });
+    const url = URL.createObjectURL(blob);
+
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+
+    URL.revokeObjectURL(url);
+
+    let w = img.naturalWidth || img.width;
+    let h = img.naturalHeight || img.height;
+    if (w <= 0 || h <= 0) return null;
+
+    if (Math.max(w, h) > maxDimension) {
+      const scale = maxDimension / Math.max(w, h);
+      w = Math.max(1, Math.round(w * scale));
+      h = Math.max(1, Math.round(h * scale));
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, w, h);
+
+    const newBlob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/jpeg", quality);
+    });
+
+    if (!newBlob) return null;
+    const buf = await newBlob.arrayBuffer();
+    return new Uint8Array(buf);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Render a single page of a PDF via PDF.js to a compressed JPEG
+ */
+async function renderPageToJpg(
+  pdf: any,
+  pageNumber: number,
+  dpi: number,
+  quality: number
+): Promise<{
+  jpgBytes: Uint8Array;
+  pageWidthPt: number;
+  pageHeightPt: number;
+  previewDataUrl?: string;
+}> {
+  const page = await pdf.getPage(pageNumber);
+  const scale = dpi / 72.0;
+  const viewport = page.getViewport({ scale });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(viewport.width);
+  canvas.height = Math.round(viewport.height);
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not create canvas 2D context");
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+
+  // White background for pages
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  await page.render({
+    canvasContext: context,
+    viewport,
+  }).promise;
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => {
+        if (b) resolve(b);
+        else reject(new Error("Canvas toBlob failed"));
+      },
+      "image/jpeg",
+      quality
+    );
+  });
+
+  const arrayBuf = await blob.arrayBuffer();
+  const previewDataUrl = pageNumber === 1 ? canvas.toDataURL("image/jpeg", 0.65) : undefined;
+
+  return {
+    jpgBytes: new Uint8Array(arrayBuf),
+    pageWidthPt: viewport.width / scale,
+    pageHeightPt: viewport.height / scale,
+    previewDataUrl,
+  };
+}
+
+/**
+ * Multi-Stage Target-Size PDF Compression
  */
 export async function compressPdfToTarget(
   file: File,
   targetSizeBytes: number,
-  onProgress?: (percent: number, status: string) => void
+  options: {
+    mode?: PdfCompressionMode;
+    allowRasterization?: boolean;
+    onProgress?: (percent: number, status: string) => void;
+  } = {}
 ): Promise<CompressPdfResult> {
+  const { mode = "balanced", allowRasterization = false, onProgress } = options;
   const originalSize = file.size;
-  onProgress?.(15, "Analyzing PDF structure & dictionaries...");
 
+  onProgress?.(10, "Loading PDF structure & dictionaries...");
   const arrayBuffer = await file.arrayBuffer();
   const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
   const totalPages = pdfDoc.getPageCount();
 
-  // Strip excessive metadata to compact structure
+  // -------------------------------------------------------------
+  // STAGE 1: Lossless Stream Compaction & Metadata Optimization
+  // -------------------------------------------------------------
+  onProgress?.(20, "Stage 1: Removing redundant metadata and optimizing object streams...");
+
   pdfDoc.setTitle("");
   pdfDoc.setAuthor("");
   pdfDoc.setSubject("");
@@ -276,45 +406,273 @@ export async function compressPdfToTarget(
   pdfDoc.setProducer("FlarePrint Tools");
   pdfDoc.setCreator("FlarePrint Tools");
 
-  onProgress?.(45, "Compacting cross-reference tables & streams...");
-  let compressedBytes = await pdfDoc.save({ useObjectStreams: true });
-
-  onProgress?.(85, "Evaluating achieved size vs target...");
-  let resultSize = compressedBytes.byteLength;
-
-  // Tolerance: within 8% or less of target
-  let targetAchieved = resultSize <= targetSizeBytes * 1.08;
-  let recommendation: string | undefined = undefined;
-
-  // If the target is significantly lower than original and could not be met via stream compaction alone:
-  if (!targetAchieved) {
-    const recommendedPreset =
-      targetSizeBytes < 500 * 1024
-        ? "500 KB or 1 MB"
-        : targetSizeBytes < 1024 * 1024
-        ? "2 MB"
-        : "a larger target";
-
-    recommendation = `This PDF contains vector graphics, embedded typography, or is already optimized. We couldn't safely reduce it to ${formatBytes(
-      targetSizeBytes
-    )} without destructive data loss. Try selecting ${recommendedPreset}.`;
+  // Remove XML metadata stream if present in catalog
+  try {
+    const catalog = pdfDoc.catalog;
+    if (catalog.has(PDFName.of("Metadata"))) {
+      catalog.delete(PDFName.of("Metadata"));
+    }
+  } catch {
+    // Ignore catalog metadata deletion errors
   }
 
-  const reductionPercent = Math.max(
-    0,
-    Math.round(((originalSize - resultSize) / originalSize) * 100)
-  );
+  const stage1Bytes = await pdfDoc.save({ useObjectStreams: true });
+  let bestResultBytes = stage1Bytes;
+  let bestMethod = "Lossless Stream Compaction (Metadata & Object Streams)";
+  let isRasterized = false;
 
-  onProgress?.(100, "Compression complete");
+  // Strict check: Is target achieved without modifying visual content?
+  if (stage1Bytes.byteLength <= targetSizeBytes) {
+    onProgress?.(100, "Done");
+    const resultSize = stage1Bytes.byteLength;
+    const reductionPercent = Math.max(0, Math.round(((originalSize - resultSize) / originalSize) * 100));
+
+    return {
+      data: stage1Bytes,
+      originalSize,
+      resultSize,
+      targetSize: targetSizeBytes,
+      reductionPercent,
+      targetAchieved: true,
+      totalPages,
+      methodUsed: bestMethod,
+      isRasterized: false,
+    };
+  }
+
+  // -------------------------------------------------------------
+  // STAGE 2: Embedded Image Optimization (Preserves vectors & text)
+  // -------------------------------------------------------------
+  onProgress?.(35, "Stage 2: Scanning for embedded raster images...");
+
+  const indirectObjects = pdfDoc.context.enumerateIndirectObjects();
+  const imageStreamRefs: { ref: any; stream: PDFRawStream }[] = [];
+
+  for (const [ref, obj] of indirectObjects) {
+    if (obj instanceof PDFRawStream) {
+      const subtype = obj.dict.get(PDFName.of("Subtype"));
+      if (subtype && subtype.toString() === "/Image") {
+        const filter = obj.dict.get(PDFName.of("Filter"));
+        // Check for JPEG images encoded as DCTDecode
+        if (filter && filter.toString().includes("DCTDecode")) {
+          imageStreamRefs.push({ ref, stream: obj });
+        }
+      }
+    }
+  }
+
+  if (imageStreamRefs.length > 0) {
+    onProgress?.(
+      45,
+      `Stage 2: Found ${imageStreamRefs.length} embedded images. Optimizing compression...`
+    );
+
+    let imageQuality = 0.70;
+    let maxDim = 2000;
+    if (mode === "strong") {
+      imageQuality = 0.55;
+      maxDim = 1600;
+    } else if (mode === "maximum") {
+      imageQuality = 0.40;
+      maxDim = 1200;
+    }
+
+    let optimizedAny = false;
+    for (let i = 0; i < imageStreamRefs.length; i++) {
+      const item = imageStreamRefs[i];
+      const reencoded = await reencodeJpegBytes(item.stream.contents, imageQuality, maxDim);
+
+      if (reencoded && reencoded.length < item.stream.contents.length) {
+        optimizedAny = true;
+        const newStream = PDFRawStream.of(item.stream.dict, reencoded);
+        item.stream.dict.set(PDFName.of("Length"), PDFNumber.of(reencoded.length));
+        pdfDoc.context.assign(item.ref, newStream);
+      }
+    }
+
+    if (optimizedAny) {
+      onProgress?.(60, "Stage 2: Recompiling PDF with optimized images...");
+      const stage2Bytes = await pdfDoc.save({ useObjectStreams: true });
+
+      if (stage2Bytes.byteLength < bestResultBytes.byteLength) {
+        bestResultBytes = stage2Bytes;
+        bestMethod = "Embedded Image Optimization (Searchable text & vector paths preserved)";
+      }
+
+      if (stage2Bytes.byteLength <= targetSizeBytes) {
+        onProgress?.(100, "Done");
+        const resultSize = stage2Bytes.byteLength;
+        const reductionPercent = Math.max(0, Math.round(((originalSize - resultSize) / originalSize) * 100));
+
+        return {
+          data: stage2Bytes,
+          originalSize,
+          resultSize,
+          targetSize: targetSizeBytes,
+          reductionPercent,
+          targetAchieved: true,
+          totalPages,
+          methodUsed: bestMethod,
+          isRasterized: false,
+        };
+      }
+    }
+  }
+
+  // -------------------------------------------------------------
+  // STAGE 3: Aggressive Page Rasterization Fallback
+  // -------------------------------------------------------------
+  const canRasterize = mode === "strong" || mode === "maximum" || allowRasterization;
+
+  if (canRasterize) {
+    onProgress?.(65, "Stage 3: Preparing adaptive page rasterization...");
+
+    try {
+      const pdfjs = await getPdfJs();
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      const numPages = pdf.numPages;
+
+      // Approximate allowable size per page
+      const overheadBytes = Math.min(16000, 2048 + numPages * 1024);
+      const targetPerImage = Math.max(4000, (targetSizeBytes - overheadBytes) / numPages);
+
+      // Define candidate configurations [DPI, quality]
+      const candidates: [number, number][] = [
+        [150, 0.75],
+        [150, 0.60],
+        [120, 0.70],
+        [120, 0.55],
+        [96, 0.65],
+        [96, 0.50],
+        [72, 0.65],
+        [72, 0.50],
+        [72, 0.35],
+        [50, 0.45],
+        [50, 0.30],
+      ];
+
+      // Filter candidates based on mode
+      let filteredCandidates = candidates;
+      if (mode === "strong") {
+        filteredCandidates = candidates.filter(([dpi, q]) => dpi >= 72 || q >= 0.40);
+      } else if (mode === "maximum") {
+        filteredCandidates = candidates;
+      }
+
+      // Sample page 1 to find best DPI and quality that fits the target per page
+      let bestDpi = 72;
+      let bestQ = 0.50;
+      let matchedCandidate = false;
+
+      for (let c = 0; c < filteredCandidates.length; c++) {
+        const [dpi, q] = filteredCandidates[c];
+        const sample = await renderPageToJpg(pdf, 1, dpi, q);
+
+        if (sample.jpgBytes.byteLength <= targetPerImage) {
+          bestDpi = dpi;
+          bestQ = q;
+          matchedCandidate = true;
+          break;
+        }
+      }
+
+      // If even lowest candidate exceeds sample target, pick the lowest candidate
+      if (!matchedCandidate) {
+        const lastCand = filteredCandidates[filteredCandidates.length - 1];
+        bestDpi = lastCand[0];
+        bestQ = lastCand[1];
+      }
+
+      onProgress?.(75, `Stage 3: Rendering ${numPages} pages at ${bestDpi} DPI (${Math.round(bestQ * 100)}% quality)...`);
+
+      const rasterPdf = await PDFDocument.create();
+      let firstPagePreview: string | undefined = undefined;
+
+      for (let p = 1; p <= numPages; p++) {
+        onProgress?.(
+          75 + Math.round((p / numPages) * 20),
+          `Rendering & compressing page ${p} of ${numPages}...`
+        );
+
+        const rendered = await renderPageToJpg(pdf, p, bestDpi, bestQ);
+        if (p === 1 && rendered.previewDataUrl) {
+          firstPagePreview = rendered.previewDataUrl;
+        }
+
+        const embeddedJpg = await rasterPdf.embedJpg(rendered.jpgBytes);
+        const newPage = rasterPdf.addPage([rendered.pageWidthPt, rendered.pageHeightPt]);
+        newPage.drawImage(embeddedJpg, {
+          x: 0,
+          y: 0,
+          width: rendered.pageWidthPt,
+          height: rendered.pageHeightPt,
+        });
+      }
+
+      onProgress?.(96, "Stage 3: Compacting rasterized PDF streams...");
+      const rasterBytes = await rasterPdf.save({ useObjectStreams: true });
+
+      // Compare if rasterized output is smaller or met the target
+      if (rasterBytes.byteLength <= targetSizeBytes || rasterBytes.byteLength < bestResultBytes.byteLength) {
+        bestResultBytes = rasterBytes;
+        isRasterized = true;
+        bestMethod = `Page Rasterization (${bestDpi} DPI, ${Math.round(bestQ * 100)}% Quality)`;
+      }
+
+      onProgress?.(100, "Done");
+      const resultSize = bestResultBytes.byteLength;
+      const targetAchieved = resultSize <= targetSizeBytes; // Strict check
+      const reductionPercent = Math.max(0, Math.round(((originalSize - resultSize) / originalSize) * 100));
+
+      let recommendation: string | undefined = undefined;
+      let warningNote: string | undefined = undefined;
+
+      if (isRasterized) {
+        warningNote = "Notice: Pages were flattened to compressed images to reach your target size. Selectable text and vector paths have been converted to image format.";
+      }
+
+      if (!targetAchieved) {
+        recommendation = `This ${numPages}-page document could not be reduced below ${formatBytes(resultSize)} without unreadable resolution. Try selecting a larger target size (e.g. ${formatBytes(Math.ceil(resultSize / 1024 / 50) * 50 * 1024)}).`;
+      }
+
+      return {
+        data: bestResultBytes,
+        originalSize,
+        resultSize,
+        targetSize: targetSizeBytes,
+        reductionPercent,
+        targetAchieved,
+        totalPages,
+        methodUsed: bestMethod,
+        isRasterized,
+        dpi: bestDpi,
+        previewUrl: firstPagePreview,
+        recommendation,
+        warningNote,
+      };
+    } catch {
+      // If rasterization encounters an error (e.g. password-protected or unsupported worker), proceed with best lossless result
+    }
+  }
+
+  // If rasterization was not enabled (e.g. Balanced mode) and target remains unmet:
+  onProgress?.(100, "Done");
+  const resultSize = bestResultBytes.byteLength;
+  const reductionPercent = Math.max(0, Math.round(((originalSize - resultSize) / originalSize) * 100));
+  const targetAchieved = resultSize <= targetSizeBytes;
+
+  const recommendation = `Target size (${formatBytes(targetSizeBytes)}) could not be reached with lossless and image optimization alone (best achieved: ${formatBytes(resultSize)}). Switch to Strong or Maximum mode to enable page rasterization fallback, or select a larger target size.`;
 
   return {
-    data: compressedBytes,
+    data: bestResultBytes,
     originalSize,
     resultSize,
     targetSize: targetSizeBytes,
     reductionPercent,
     targetAchieved,
     totalPages,
+    methodUsed: bestMethod,
+    isRasterized: false,
     recommendation,
   };
 }

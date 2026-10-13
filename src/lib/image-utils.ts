@@ -1,3 +1,5 @@
+export type JpgCompressionMode = "balanced" | "strong" | "maximum";
+
 export interface ImageDimensions {
   width: number;
   height: number;
@@ -13,16 +15,51 @@ export interface CompressImageResult {
   finalQuality: number;
   width: number;
   height: number;
+  originalWidth: number;
+  originalHeight: number;
+  methodUsed: string;
   previewUrl: string;
+  recommendation?: string;
+  warningNote?: string;
 }
 
-export function loadImage(file: File | Blob): Promise<HTMLImageElement> {
+/**
+ * Loads an image preserving EXIF orientation where supported
+ */
+export async function loadImageWithExif(file: File | Blob): Promise<{
+  drawable: CanvasImageSource;
+  width: number;
+  height: number;
+  cleanup: () => void;
+}> {
+  if (typeof window !== "undefined" && typeof window.createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return {
+        drawable: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        cleanup: () => {
+          bitmap.close();
+        },
+      };
+    } catch {
+      // Fallback to standard Image element if createImageBitmap orientation is unsupported
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
+      resolve({
+        drawable: img,
+        width: img.naturalWidth || img.width,
+        height: img.naturalHeight || img.height,
+        cleanup: () => {
+          URL.revokeObjectURL(url);
+        },
+      });
     };
     img.onerror = (err) => {
       URL.revokeObjectURL(url);
@@ -33,10 +70,57 @@ export function loadImage(file: File | Blob): Promise<HTMLImageElement> {
 }
 
 export async function getImageDimensions(file: File): Promise<ImageDimensions> {
-  const img = await loadImage(file);
-  return { width: img.naturalWidth, height: img.naturalHeight };
+  const loaded = await loadImageWithExif(file);
+  const dims = { width: loaded.width, height: loaded.height };
+  loaded.cleanup();
+  return dims;
 }
 
+/**
+ * Convert canvas to JPEG blob with white background for transparency
+ */
+function canvasToJpgBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Canvas toBlob failed"));
+      },
+      "image/jpeg",
+      Math.max(0.05, Math.min(1.0, quality))
+    );
+  });
+}
+
+/**
+ * Draw image onto a canvas with specified dimensions and background color
+ */
+function drawToCanvas(
+  drawable: CanvasImageSource,
+  targetWidth: number,
+  targetHeight: number,
+  bgColor: string = "#ffffff"
+): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(targetWidth));
+  canvas.height = Math.max(1, Math.round(targetHeight));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not initialize 2D canvas context");
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+
+  // Solid background to cleanly handle transparent PNGs converting to JPEG
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(drawable, 0, 0, canvas.width, canvas.height);
+
+  return canvas;
+}
+
+/**
+ * Resizes an image file directly
+ */
 export async function resizeImage(
   file: File,
   targetWidth: number,
@@ -44,23 +128,9 @@ export async function resizeImage(
   mimeType: "image/jpeg" | "image/png" = "image/jpeg",
   quality: number = 0.92
 ): Promise<{ blob: Blob; width: number; height: number; size: number; previewUrl: string }> {
-  const img = await loadImage(file);
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(targetWidth));
-  canvas.height = Math.max(1, Math.round(targetHeight));
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Could not create canvas 2D context");
-
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-
-  // White background for transparent PNG converted to JPEG
-  if (mimeType === "image/jpeg") {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const loaded = await loadImageWithExif(file);
+  const canvas = drawToCanvas(loaded.drawable, targetWidth, targetHeight, "#ffffff");
+  loaded.cleanup();
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -80,107 +150,220 @@ export async function resizeImage(
   });
 }
 
+/**
+ * Binary search for optimal JPEG quality on a given canvas
+ */
+async function binarySearchQuality(
+  canvas: HTMLCanvasElement,
+  targetBytes: number,
+  minQ: number,
+  maxQ: number,
+  iterations: number = 6
+): Promise<{ blob: Blob; quality: number; sizeMatches: boolean }> {
+  let low = minQ;
+  let high = maxQ;
+  let bestBlob: Blob | null = null;
+  let bestQ = low;
+
+  // First check if high quality already satisfies the target
+  const maxBlob = await canvasToJpgBlob(canvas, maxQ);
+  if (maxBlob.size <= targetBytes) {
+    return { blob: maxBlob, quality: maxQ, sizeMatches: true };
+  }
+
+  // Check if minimum quality can satisfy the target
+  const minBlob = await canvasToJpgBlob(canvas, minQ);
+  if (minBlob.size > targetBytes) {
+    return { blob: minBlob, quality: minQ, sizeMatches: false };
+  }
+
+  bestBlob = minBlob;
+  bestQ = minQ;
+
+  for (let i = 0; i < iterations; i++) {
+    const mid = (low + high) / 2;
+    const testBlob = await canvasToJpgBlob(canvas, mid);
+
+    if (testBlob.size <= targetBytes) {
+      bestBlob = testBlob;
+      bestQ = mid;
+      low = mid; // Try higher quality
+    } else {
+      high = mid; // Needs stronger compression
+    }
+  }
+
+  return {
+    blob: bestBlob || minBlob,
+    quality: bestQ,
+    sizeMatches: (bestBlob?.size ?? minBlob.size) <= targetBytes,
+  };
+}
+
+/**
+ * Intelligent, multi-stage JPEG Target Size Compression
+ */
 export async function compressJpgToTarget(
   file: File,
   targetSizeBytes: number,
-  onProgress?: (percent: number) => void
+  mode: JpgCompressionMode = "balanced",
+  onProgress?: (percent: number, status?: string) => void
 ): Promise<CompressImageResult> {
   const originalSize = file.size;
-  const img = await loadImage(file);
-  let currentWidth = img.naturalWidth;
-  let currentHeight = img.naturalHeight;
+  onProgress?.(10, "Decoding image & EXIF orientation...");
 
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas context initialization failed");
+  const loaded = await loadImageWithExif(file);
+  const origW = loaded.width;
+  const origH = loaded.height;
 
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
+  // Determine compression limits based on selected mode
+  let minQuality = 0.35;
+  let minScale = 0.50;
+  if (mode === "strong") {
+    minQuality = 0.20;
+    minScale = 0.25;
+  } else if (mode === "maximum") {
+    minQuality = 0.10;
+    minScale = 0.10;
+  }
 
-  // Helper to test a canvas at a given quality
-  const testCanvas = (q: number): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error("Canvas toBlob failed"));
-        },
-        "image/jpeg",
-        q
-      );
-    });
-  };
+  onProgress?.(25, "Testing quality compression at 100% dimensions...");
+  const fullCanvas = drawToCanvas(loaded.drawable, origW, origH, "#ffffff");
 
-  const drawCurrent = () => {
-    canvas.width = Math.max(1, Math.round(currentWidth));
-    canvas.height = Math.max(1, Math.round(currentHeight));
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  };
+  // Step 1: Attempt to meet target size using quality reduction at original dimensions
+  const fullDimResult = await binarySearchQuality(fullCanvas, targetSizeBytes, minQuality, 0.95, 7);
 
-  drawCurrent();
+  if (fullDimResult.sizeMatches) {
+    loaded.cleanup();
+    onProgress?.(100, "Done");
+    const resultSize = fullDimResult.blob.size;
+    const reductionPercent = Math.max(0, Math.round(((originalSize - resultSize) / originalSize) * 100));
 
-  // Binary search for JPEG quality
-  let low = 0.05;
-  let high = 0.95;
-  let bestBlob: Blob | null = null;
-  let bestQuality = high;
+    return {
+      blob: fullDimResult.blob,
+      originalSize,
+      resultSize,
+      targetSize: targetSizeBytes,
+      reductionPercent,
+      targetAchieved: resultSize <= targetSizeBytes,
+      finalQuality: Math.round(fullDimResult.quality * 100),
+      width: origW,
+      height: origH,
+      originalWidth: origW,
+      originalHeight: origH,
+      methodUsed: `Quality Optimization (${Math.round(fullDimResult.quality * 100)}% quality, 100% dimensions)`,
+      previewUrl: URL.createObjectURL(fullDimResult.blob),
+    };
+  }
 
-  for (let iter = 0; iter < 7; iter++) {
-    const mid = (low + high) / 2;
-    onProgress?.(Math.round(((iter + 1) / 8) * 70));
-    const testBlob = await testCanvas(mid);
+  // Step 2: Quality alone at full resolution cannot reach target size.
+  // Progressively downscale dimensions while searching quality at each step.
+  onProgress?.(45, "Quality alone insufficient. Adjusting dimensions...");
 
-    if (testBlob.size <= targetSizeBytes) {
-      bestBlob = testBlob;
-      bestQuality = mid;
-      low = mid; // Try to get higher quality while staying under target
-    } else {
-      high = mid;
+  // Approximate required scale based on area scaling (size ~ width * height)
+  const estimatedScale = Math.sqrt(targetSizeBytes / fullDimResult.blob.size) * 0.95;
+
+  // Candidate scale steps ordered from largest dimensions to smallest
+  const standardScales = [0.90, 0.80, 0.70, 0.60, 0.50, 0.40, 0.30, 0.25, 0.20, 0.15, 0.10];
+  const candidateScales = Array.from(
+    new Set(
+      [estimatedScale, ...standardScales]
+        .filter((s) => s <= 0.95 && s >= minScale)
+        .map((s) => parseFloat(s.toFixed(2)))
+    )
+  ).sort((a, b) => b - a);
+
+  let bestResult: {
+    blob: Blob;
+    quality: number;
+    width: number;
+    height: number;
+    scale: number;
+  } | null = null;
+
+  for (let idx = 0; idx < candidateScales.length; idx++) {
+    const scale = candidateScales[idx];
+    const progress = 45 + Math.round(((idx + 1) / candidateScales.length) * 50);
+    const currW = Math.max(16, Math.round(origW * scale));
+    const currH = Math.max(16, Math.round(origH * scale));
+
+    onProgress?.(progress, `Testing dimensions ${currW}×${currH} (${Math.round(scale * 100)}%)...`);
+
+    const scaledCanvas = drawToCanvas(loaded.drawable, currW, currH, "#ffffff");
+    const scaledResult = await binarySearchQuality(scaledCanvas, targetSizeBytes, minQuality, 0.92, 5);
+
+    if (scaledResult.sizeMatches) {
+      // If quality is crisp (>= 0.65), this is an optimal balance of dimension and quality
+      if (scaledResult.quality >= 0.65 || !bestResult) {
+        bestResult = {
+          blob: scaledResult.blob,
+          quality: scaledResult.quality,
+          width: currW,
+          height: currH,
+          scale,
+        };
+        // If we got good quality under target, we can stop searching smaller dimensions
+        if (scaledResult.quality >= 0.70) {
+          break;
+        }
+      }
+    } else if (!bestResult) {
+      // Track the closest attempt so far in case target cannot be reached
+      bestResult = {
+        blob: scaledResult.blob,
+        quality: scaledResult.quality,
+        width: currW,
+        height: currH,
+        scale,
+      };
     }
   }
 
-  // If even lowest quality is larger than target size, downscale dimensions
-  let scaleIter = 0;
-  while ((!bestBlob || bestBlob.size > targetSizeBytes) && scaleIter < 4) {
-    scaleIter++;
-    const scaleFactor = 0.8;
-    currentWidth *= scaleFactor;
-    currentHeight *= scaleFactor;
-    drawCurrent();
+  loaded.cleanup();
+  onProgress?.(100, "Done");
 
-    onProgress?.(70 + Math.round((scaleIter / 4) * 25));
-    const blobAtLowQ = await testCanvas(0.65);
-    if (blobAtLowQ.size <= targetSizeBytes || scaleIter === 4) {
-      bestBlob = blobAtLowQ;
-      bestQuality = 0.65;
-      break;
-    }
+  // Fallback to lowest achievable if still null
+  if (!bestResult) {
+    bestResult = {
+      blob: fullDimResult.blob,
+      quality: fullDimResult.quality,
+      width: origW,
+      height: origH,
+      scale: 1.0,
+    };
   }
 
-  onProgress?.(100);
-
-  // If no blob under target could be found, use the smallest one achieved
-  if (!bestBlob) {
-    bestBlob = await testCanvas(0.1);
-    bestQuality = 0.1;
-  }
-
-  const resultSize = bestBlob.size;
+  const resultSize = bestResult.blob.size;
+  const targetAchieved = resultSize <= targetSizeBytes; // Strict check
   const reductionPercent = Math.max(0, Math.round(((originalSize - resultSize) / originalSize) * 100));
-  const targetAchieved = resultSize <= targetSizeBytes * 1.08; // 8% tolerance threshold
+
+  let methodUsed = `Quality & Dimension Scaling (${Math.round(bestResult.scale * 100)}% scale, ${Math.round(bestResult.quality * 100)}% quality)`;
+  let recommendation: string | undefined = undefined;
+  let warningNote: string | undefined = undefined;
+
+  if (targetAchieved) {
+    if (bestResult.scale < 0.50 || bestResult.quality < 0.40) {
+      warningNote = "Strong dimension scaling or lower quality was required to reach this target size.";
+    }
+  } else {
+    recommendation = `Target size could not be fully reached within the ${mode} mode constraints. We reduced this image to ${bestResult.width}×${bestResult.height} px (${(resultSize / 1024).toFixed(1)} KB). Try choosing Maximum Compression mode or a larger target size.`;
+  }
 
   return {
-    blob: bestBlob,
+    blob: bestResult.blob,
     originalSize,
     resultSize,
     targetSize: targetSizeBytes,
     reductionPercent,
     targetAchieved,
-    finalQuality: Math.round(bestQuality * 100),
-    width: Math.round(currentWidth),
-    height: Math.round(currentHeight),
-    previewUrl: URL.createObjectURL(bestBlob),
+    finalQuality: Math.round(bestResult.quality * 100),
+    width: bestResult.width,
+    height: bestResult.height,
+    originalWidth: origW,
+    originalHeight: origH,
+    methodUsed,
+    previewUrl: URL.createObjectURL(bestResult.blob),
+    recommendation,
+    warningNote,
   };
 }

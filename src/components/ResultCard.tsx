@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Download, RefreshCw, CheckCircle2, AlertTriangle, Printer, Sparkles } from "lucide-react";
+import { Download, RefreshCw, CheckCircle2, AlertTriangle, Printer, Sparkles, Layers, Info } from "lucide-react";
 import { formatBytes } from "@/lib/utils";
 
 interface ResultCardProps {
@@ -11,13 +11,17 @@ interface ResultCardProps {
   reductionPercent?: number;
   targetSize?: number;
   targetAchieved?: boolean;
+  methodUsed?: string;
   recommendation?: string;
+  warningNote?: string;
   filename: string;
   onDownload: () => void;
   onReset: () => void;
   resetButtonText?: string;
   extraStats?: { label: string; value: string }[];
   showPrintHook?: boolean;
+  onAction?: () => void;
+  actionText?: string;
 }
 
 export function ResultCard({
@@ -27,13 +31,17 @@ export function ResultCard({
   reductionPercent,
   targetSize,
   targetAchieved,
+  methodUsed,
   recommendation,
+  warningNote,
   filename,
   onDownload,
   onReset,
   resetButtonText = "Process another file",
   extraStats,
   showPrintHook = true,
+  onAction,
+  actionText,
 }: ResultCardProps) {
   const hasReduction = reductionPercent !== undefined && reductionPercent > 0;
 
@@ -41,16 +49,49 @@ export function ResultCard({
     <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-6 max-w-xl mx-auto">
       {/* Header status */}
       <div className="flex items-center gap-3.5 pb-4 border-b border-slate-100">
-        <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
-          <CheckCircle2 className="w-7 h-7" />
+        <div
+          className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            targetAchieved === false
+              ? "bg-amber-100 text-amber-600"
+              : "bg-emerald-100 text-emerald-600"
+          }`}
+        >
+          {targetAchieved === false ? (
+            <AlertTriangle className="w-6 h-6" />
+          ) : (
+            <CheckCircle2 className="w-7 h-7" />
+          )}
         </div>
-        <div>
-          <h3 className="text-xl font-bold text-slate-900">{title}</h3>
-          <p className="text-xs text-slate-500 truncate max-w-xs sm:max-w-md font-mono mt-0.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-xl font-bold text-slate-900">{title}</h3>
+            {targetAchieved !== undefined && (
+              <span
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                  targetAchieved
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                }`}
+              >
+                {targetAchieved ? "Target Achieved" : "Closest Target Size"}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 truncate font-mono mt-0.5">
             {filename}
           </p>
         </div>
       </div>
+
+      {/* Method Used Badge */}
+      {methodUsed && (
+        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
+          <Layers className="w-4 h-4 text-blue-600 flex-shrink-0" />
+          <span className="truncate">
+            <strong className="text-slate-800">Method:</strong> {methodUsed}
+          </span>
+        </div>
+      )}
 
       {/* Metrics Grid */}
       {(originalSize !== undefined || resultSize !== undefined || extraStats) && (
@@ -91,21 +132,45 @@ export function ResultCard({
         </div>
       )}
 
+      {/* Warning / Destructive Disclosures */}
+      {warningNote && (
+        <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 text-blue-900 text-xs space-y-1">
+          <div className="flex items-center gap-1.5 font-semibold text-blue-800">
+            <Info className="w-4 h-4 flex-shrink-0" />
+            <span>Optimization Details</span>
+          </div>
+          <p className="text-blue-700 leading-relaxed">{warningNote}</p>
+        </div>
+      )}
+
       {/* Honest Target Feedback & Limitation Callout */}
       {targetSize !== undefined && targetAchieved === false && (
-        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
           <div className="flex items-center gap-1.5 font-semibold text-amber-800">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-            <span>Target size could not be fully reached safely</span>
+            <span>Target size could not be fully reached</span>
           </div>
           <p className="text-amber-700 leading-relaxed">
             {recommendation ||
-              `We couldn't safely reduce this file to ${formatBytes(
-                targetSize
-              )} without excessive quality loss. The file was optimized to ${formatBytes(
+              `The file was optimized to ${formatBytes(
                 resultSize || 0
-              )}.`}
+              )}, but couldn't reach ${formatBytes(
+                targetSize
+              )} within current mode thresholds.`}
           </p>
+
+          {onAction && actionText && (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={onAction}
+                className="py-2 px-3.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>{actionText}</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
