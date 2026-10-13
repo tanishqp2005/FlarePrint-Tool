@@ -11,9 +11,13 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://tools.flareprint.me"),
   title: "FlarePrint Tools - Free tools for your documents",
   description:
     "Compress, resize, convert and organize your PDF and image files. Free, private, and fast document utilities processed right in your browser.",
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
@@ -24,6 +28,7 @@ export const metadata: Metadata = {
       "Compress, resize, convert and organize your PDF and image files right in your browser.",
     siteName: "FlarePrint Tools",
     type: "website",
+    url: "https://tools.flareprint.me",
   },
 };
 

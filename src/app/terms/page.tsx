@@ -14,7 +14,7 @@ export default function TermsPage() {
         </p>
       </div>
 
-      <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-6 text-sm text-slate-600 leading-relaxed">
+      <div className="bg-white border border-border rounded-3xl p-6 sm:p-8 shadow-card space-y-6 text-sm text-slate-600 leading-relaxed">
         <section className="space-y-2">
           <h2 className="text-base font-bold text-slate-900">1. Acceptance of Terms</h2>
           <p>
