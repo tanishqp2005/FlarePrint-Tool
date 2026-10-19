@@ -386,7 +386,7 @@ export async function compressPdfToTarget(
     onProgress?: (percent: number, status: string) => void;
   } = {}
 ): Promise<CompressPdfResult> {
-  const { mode = "balanced", allowRasterization = false, onProgress } = options;
+  const { mode = "strong", allowRasterization = false, onProgress } = options;
   const originalSize = file.size;
 
   onProgress?.(10, "Loading PDF structure & dictionaries...");
@@ -619,6 +619,49 @@ export async function compressPdfToTarget(
         bestMethod = `Page Rasterization (${bestDpi} DPI, ${Math.round(bestQ * 100)}% Quality)`;
       }
 
+      // If initial rasterization didn't reach target, see if a lower candidate in this mode can reach it
+      if (bestResultBytes.byteLength > targetSizeBytes && matchedCandidate) {
+        const currentCandIdx = filteredCandidates.findIndex(
+          ([d, q]) => d === bestDpi && q === bestQ
+        );
+        if (currentCandIdx !== -1 && currentCandIdx < filteredCandidates.length - 1) {
+          const scaleRatio = targetSizeBytes / bestResultBytes.byteLength;
+          const adjustedTargetPerImage = targetPerImage * scaleRatio * 0.95;
+
+          for (let c = currentCandIdx + 1; c < filteredCandidates.length; c++) {
+            const [dpi, q] = filteredCandidates[c];
+            const sample = await renderPageToJpg(pdf, 1, dpi, q);
+            if (sample.jpgBytes.byteLength <= adjustedTargetPerImage || c === filteredCandidates.length - 1) {
+              onProgress?.(85, `Refining compression at ${dpi} DPI (${Math.round(q * 100)}% quality)...`);
+              const refinedPdf = await PDFDocument.create();
+              for (let p = 1; p <= numPages; p++) {
+                const rendered = await renderPageToJpg(pdf, p, dpi, q);
+                if (p === 1 && rendered.previewDataUrl) {
+                  firstPagePreview = rendered.previewDataUrl;
+                }
+                const embeddedJpg = await refinedPdf.embedJpg(rendered.jpgBytes);
+                const newPage = refinedPdf.addPage([rendered.pageWidthPt, rendered.pageHeightPt]);
+                newPage.drawImage(embeddedJpg, {
+                  x: 0,
+                  y: 0,
+                  width: rendered.pageWidthPt,
+                  height: rendered.pageHeightPt,
+                });
+              }
+              const refinedBytes = await refinedPdf.save({ useObjectStreams: true });
+              if (refinedBytes.byteLength <= targetSizeBytes || refinedBytes.byteLength < bestResultBytes.byteLength) {
+                bestResultBytes = refinedBytes;
+                bestDpi = dpi;
+                bestQ = q;
+                isRasterized = true;
+                bestMethod = `Page Rasterization (${bestDpi} DPI, ${Math.round(bestQ * 100)}% Quality)`;
+              }
+              break;
+            }
+          }
+        }
+      }
+
       onProgress?.(100, "Done");
       const resultSize = bestResultBytes.byteLength;
       const targetAchieved = resultSize <= targetSizeBytes; // Strict check
@@ -632,7 +675,12 @@ export async function compressPdfToTarget(
       }
 
       if (!targetAchieved) {
-        recommendation = `This ${numPages}-page document could not be reduced below ${formatBytes(resultSize)} without unreadable resolution. Try selecting a larger target size (e.g. ${formatBytes(Math.ceil(resultSize / 1024 / 50) * 50 * 1024)}).`;
+        const suggestedKb = Math.ceil((resultSize * 1.05) / 1024 / 50) * 50;
+        if (mode === "strong") {
+          recommendation = `This ${numPages}-page document could not be reduced below ${formatBytes(resultSize)} with Strong compression. Try selecting a more realistic target size (e.g. ${suggestedKb} KB) or switch to Maximum mode.`;
+        } else {
+          recommendation = `This ${numPages}-page document could not be reduced below ${formatBytes(resultSize)} even with Maximum compression. Try selecting a more realistic target size (e.g. ${suggestedKb} KB).`;
+        }
       }
 
       return {
@@ -655,13 +703,23 @@ export async function compressPdfToTarget(
     }
   }
 
-  // If rasterization was not enabled (e.g. Balanced mode) and target remains unmet:
+  // If rasterization was not enabled (e.g. Balanced mode) or rasterization threw an error and target remains unmet:
   onProgress?.(100, "Done");
   const resultSize = bestResultBytes.byteLength;
   const reductionPercent = Math.max(0, Math.round(((originalSize - resultSize) / originalSize) * 100));
   const targetAchieved = resultSize <= targetSizeBytes;
 
-  const recommendation = `Target size (${formatBytes(targetSizeBytes)}) could not be reached with lossless and image optimization alone (best achieved: ${formatBytes(resultSize)}). Switch to Strong or Maximum mode to enable page rasterization fallback, or select a larger target size.`;
+  let recommendation: string | undefined = undefined;
+  if (!targetAchieved) {
+    const suggestedKb = Math.ceil((resultSize * 1.05) / 1024 / 50) * 50;
+    if (mode === "balanced") {
+      recommendation = `Target size (${formatBytes(targetSizeBytes)}) could not be reached with lossless and image optimization alone (best achieved: ${formatBytes(resultSize)}). Switch to Strong or Maximum mode to enable page rasterization fallback, or select a larger target size (e.g. ${suggestedKb} KB).`;
+    } else if (mode === "strong") {
+      recommendation = `Target size (${formatBytes(targetSizeBytes)}) could not be reached within Strong mode constraints (best achieved: ${formatBytes(resultSize)}). Try selecting a more realistic target size (e.g. ${suggestedKb} KB) or switch to Maximum mode.`;
+    } else {
+      recommendation = `Target size (${formatBytes(targetSizeBytes)}) could not be reached even within Maximum mode constraints (best achieved: ${formatBytes(resultSize)}). Try selecting a more realistic target size (e.g. ${suggestedKb} KB).`;
+    }
+  }
 
   return {
     data: bestResultBytes,

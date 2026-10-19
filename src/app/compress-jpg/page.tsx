@@ -39,7 +39,7 @@ export default function CompressJpgPage() {
   const [isCustom, setIsCustom] = useState(false);
   const [customValue, setCustomValue] = useState<string>("100");
   const [customUnit, setCustomUnit] = useState<"KB" | "MB">("KB");
-  const [mode, setMode] = useState<JpgCompressionMode>("balanced");
+  const [mode, setMode] = useState<JpgCompressionMode>("strong");
 
   const [processing, setProcessing] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);

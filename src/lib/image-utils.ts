@@ -1,3 +1,5 @@
+import { formatBytes } from "./utils";
+
 export type JpgCompressionMode = "balanced" | "strong" | "maximum";
 
 export interface ImageDimensions {
@@ -206,7 +208,7 @@ async function binarySearchQuality(
 export async function compressJpgToTarget(
   file: File,
   targetSizeBytes: number,
-  mode: JpgCompressionMode = "balanced",
+  mode: JpgCompressionMode = "strong",
   onProgress?: (percent: number, status?: string) => void
 ): Promise<CompressImageResult> {
   const originalSize = file.size;
@@ -273,7 +275,15 @@ export async function compressJpgToTarget(
     )
   ).sort((a, b) => b - a);
 
-  let bestResult: {
+  let bestMatchingResult: {
+    blob: Blob;
+    quality: number;
+    width: number;
+    height: number;
+    scale: number;
+  } | null = null;
+
+  let closestFallbackResult: {
     blob: Blob;
     quality: number;
     width: number;
@@ -290,48 +300,54 @@ export async function compressJpgToTarget(
     onProgress?.(progress, `Testing dimensions ${currW}×${currH} (${Math.round(scale * 100)}%)...`);
 
     const scaledCanvas = drawToCanvas(loaded.drawable, currW, currH, "#ffffff");
-    const scaledResult = await binarySearchQuality(scaledCanvas, targetSizeBytes, minQuality, 0.92, 5);
+    const scaledResult = await binarySearchQuality(scaledCanvas, targetSizeBytes, minQuality, 0.92, 6);
 
     if (scaledResult.sizeMatches) {
-      // If quality is crisp (>= 0.65), this is an optimal balance of dimension and quality
-      if (scaledResult.quality >= 0.65 || !bestResult) {
-        bestResult = {
-          blob: scaledResult.blob,
-          quality: scaledResult.quality,
-          width: currW,
-          height: currH,
-          scale,
-        };
-        // If we got good quality under target, we can stop searching smaller dimensions
-        if (scaledResult.quality >= 0.70) {
-          break;
-        }
-      }
-    } else if (!bestResult) {
-      // Track the closest attempt so far in case target cannot be reached
-      bestResult = {
+      const candidate = {
         blob: scaledResult.blob,
         quality: scaledResult.quality,
         width: currW,
         height: currH,
         scale,
       };
+
+      if (!bestMatchingResult) {
+        bestMatchingResult = candidate;
+      } else {
+        // Prefer higher visual quality if previous match had lower quality
+        if (scaledResult.quality >= 0.65 && bestMatchingResult.quality < 0.65) {
+          bestMatchingResult = candidate;
+        }
+      }
+
+      // If quality is high (>= 0.70), this is an optimal balance of dimension and quality
+      if (scaledResult.quality >= 0.70) {
+        break;
+      }
+    } else {
+      // Track the closest attempt (lowest file size) in case target cannot be reached
+      if (!closestFallbackResult || scaledResult.blob.size < closestFallbackResult.blob.size) {
+        closestFallbackResult = {
+          blob: scaledResult.blob,
+          quality: scaledResult.quality,
+          width: currW,
+          height: currH,
+          scale,
+        };
+      }
     }
   }
 
   loaded.cleanup();
   onProgress?.(100, "Done");
 
-  // Fallback to lowest achievable if still null
-  if (!bestResult) {
-    bestResult = {
-      blob: fullDimResult.blob,
-      quality: fullDimResult.quality,
-      width: origW,
-      height: origH,
-      scale: 1.0,
-    };
-  }
+  const bestResult = bestMatchingResult || closestFallbackResult || {
+    blob: fullDimResult.blob,
+    quality: fullDimResult.quality,
+    width: origW,
+    height: origH,
+    scale: 1.0,
+  };
 
   const resultSize = bestResult.blob.size;
   const targetAchieved = resultSize <= targetSizeBytes; // Strict check
@@ -346,7 +362,14 @@ export async function compressJpgToTarget(
       warningNote = "Strong dimension scaling or lower quality was required to reach this target size.";
     }
   } else {
-    recommendation = `Target size could not be fully reached within the ${mode} mode constraints. We reduced this image to ${bestResult.width}×${bestResult.height} px (${(resultSize / 1024).toFixed(1)} KB). Try choosing Maximum Compression mode or a larger target size.`;
+    const suggestedKb = Math.ceil((resultSize * 1.05) / 1024 / 10) * 10;
+    if (mode === "balanced") {
+      recommendation = `Target size (${formatBytes(targetSizeBytes)}) could not be reached within Balanced mode constraints (best achieved: ${formatBytes(resultSize)} at ${bestResult.width}×${bestResult.height} px). Switch to Strong or Maximum mode for more aggressive compression, or select a larger target size (e.g. ${suggestedKb} KB).`;
+    } else if (mode === "strong") {
+      recommendation = `Target size (${formatBytes(targetSizeBytes)}) could not be reached within Strong mode constraints (best achieved: ${formatBytes(resultSize)} at ${bestResult.width}×${bestResult.height} px). Try choosing Maximum Compression mode or select a more realistic target size (e.g. ${suggestedKb} KB).`;
+    } else {
+      recommendation = `Target size (${formatBytes(targetSizeBytes)}) could not be reached even within Maximum mode constraints (best achieved: ${formatBytes(resultSize)} at ${bestResult.width}×${bestResult.height} px). Try selecting a more realistic target size (e.g. ${suggestedKb} KB).`;
+    }
   }
 
   return {

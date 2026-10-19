@@ -39,7 +39,7 @@ export default function CompressPdfPage() {
   const [isCustom, setIsCustom] = useState(false);
   const [customValue, setCustomValue] = useState<string>("500");
   const [customUnit, setCustomUnit] = useState<"KB" | "MB">("KB");
-  const [mode, setMode] = useState<PdfCompressionMode>("balanced");
+  const [mode, setMode] = useState<PdfCompressionMode>("strong");
 
   const [processing, setProcessing] = useState(false);
   const [progressPercent, setProgressPercent] = useState(0);
@@ -94,6 +94,11 @@ export default function CompressPdfPage() {
   const handleRecompressWithRasterization = () => {
     setMode("strong");
     executeCompression("strong");
+  };
+
+  const handleRetryWithMaximum = () => {
+    setMode("maximum");
+    executeCompression("maximum");
   };
 
   const handleDownload = () => {
@@ -339,11 +344,19 @@ export default function CompressPdfPage() {
             onReset={handleReset}
             resetButtonText="Compress another PDF"
             onAction={
-              !result.targetAchieved && mode === "balanced"
-                ? handleRecompressWithRasterization
+              !result.targetAchieved
+                ? mode === "balanced"
+                  ? handleRecompressWithRasterization
+                  : mode === "strong"
+                  ? handleRetryWithMaximum
+                  : undefined
                 : undefined
             }
-            actionText="Enable Rasterization & Re-compress"
+            actionText={
+              mode === "balanced"
+                ? "Enable Rasterization & Re-compress"
+                : "Try Maximum Compression Mode"
+            }
             extraStats={[
               { label: "Target", value: formatBytes(result.targetSize) },
               { label: "Pages", value: `${result.totalPages}` },
