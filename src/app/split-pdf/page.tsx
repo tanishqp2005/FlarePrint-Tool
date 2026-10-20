@@ -111,7 +111,7 @@ export default function SplitPdfPage() {
 
   return (
     <ToolLayout
-      category="Organize"
+      category="PDF Utilities"
       title="Split PDF"
       description="Separate your PDF into individual pages or extract custom page ranges into standalone PDF documents."
     >
@@ -120,7 +120,7 @@ export default function SplitPdfPage() {
         <Dropzone
           accept=".pdf,application/pdf"
           title="Drop your PDF here"
-          buttonText="Choose PDF"
+          buttonText="Choose PDF File"
           helperText="Standard PDF documents up to 50 MB"
           onFilesSelected={handleFilesSelected}
         />
@@ -128,24 +128,24 @@ export default function SplitPdfPage() {
 
       {/* 2. File Selected - Configuration */}
       {file && !results && (
-        <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-6 max-w-xl mx-auto">
+        <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 sm:p-8 shadow-flare space-y-6 max-w-xl mx-auto">
           {/* File summary */}
-          <div className="flex items-center gap-3.5 p-4 rounded-xl bg-slate-50 border border-slate-100">
-            <div className="w-11 h-11 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0">
-              <FileText className="w-6 h-6" />
+          <div className="flex items-center gap-3.5 p-3.5 rounded-sm bg-[#F3F6FA] border border-[#D5DCE6]">
+            <div className="w-10 h-10 rounded-sm bg-white border border-[#D5DCE6] text-[#2860E8] flex items-center justify-center flex-shrink-0 font-bold">
+              <FileText className="w-5 h-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-sm text-slate-800 truncate">
+              <h3 className="font-bold text-xs uppercase tracking-tight text-[#111111] truncate">
                 {file.name}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {totalPages} {totalPages === 1 ? "page" : "pages"} • {formatBytes(file.size)}
+              <p className="text-[11px] text-[#556275] mt-0.5">
+                {totalPages} {totalPages === 1 ? "page" : "pages"} • <span className="font-bold text-[#111111] font-mono">{formatBytes(file.size)}</span>
               </p>
             </div>
             <button
               onClick={handleReset}
               disabled={processing}
-              className="text-xs text-slate-400 hover:text-red-600 font-medium transition-colors"
+              className="text-xs text-[#556275] hover:text-red-600 font-bold uppercase tracking-wider transition-colors"
             >
               Change
             </button>
@@ -153,8 +153,8 @@ export default function SplitPdfPage() {
 
           {/* Split Mode Selector */}
           <div className="space-y-4">
-            <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-              <Settings2 className="w-4 h-4 text-blue-600" />
+            <label className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+              <Settings2 className="w-3.5 h-3.5 text-[#2860E8]" />
               Choose Splitting Method
             </label>
 
@@ -162,14 +162,16 @@ export default function SplitPdfPage() {
               <button
                 type="button"
                 onClick={() => setSplitMode("all")}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
+                className={`p-4 rounded-sm border text-left transition-all ${
                   splitMode === "all"
-                    ? "bg-blue-50 border-blue-600 text-blue-900 shadow-sm"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    ? "bg-[#EBF1FD] border-[#2860E8] text-[#111111] shadow-xs"
+                    : "bg-white border-[#D5DCE6] text-[#556275] hover:bg-[#F3F6FA]"
                 }`}
               >
-                <span className="font-bold text-sm block">Split Every Page</span>
-                <span className="text-xs text-slate-500 mt-0.5 block">
+                <span className="font-extrabold text-xs uppercase tracking-wider block text-[#111111]">
+                  Split Every Page
+                </span>
+                <span className="text-[11px] text-[#556275] mt-0.5 block">
                   Generate {totalPages} separate 1-page PDF files
                 </span>
               </button>
@@ -177,14 +179,16 @@ export default function SplitPdfPage() {
               <button
                 type="button"
                 onClick={() => setSplitMode("ranges")}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
+                className={`p-4 rounded-sm border text-left transition-all ${
                   splitMode === "ranges"
-                    ? "bg-blue-50 border-blue-600 text-blue-900 shadow-sm"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    ? "bg-[#EBF1FD] border-[#2860E8] text-[#111111] shadow-xs"
+                    : "bg-white border-[#D5DCE6] text-[#556275] hover:bg-[#F3F6FA]"
                 }`}
               >
-                <span className="font-bold text-sm block">Custom Page Ranges</span>
-                <span className="text-xs text-slate-500 mt-0.5 block">
+                <span className="font-extrabold text-xs uppercase tracking-wider block text-[#111111]">
+                  Custom Page Ranges
+                </span>
+                <span className="text-[11px] text-[#556275] mt-0.5 block">
                   Specify exact ranges (e.g. 1-2, 3)
                 </span>
               </button>
@@ -193,7 +197,7 @@ export default function SplitPdfPage() {
             {/* Range input if ranges mode */}
             {splitMode === "ranges" && (
               <div className="pt-1 space-y-2">
-                <label className="text-xs font-semibold text-slate-700 block">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#556275] block">
                   Page Ranges or Single Pages
                 </label>
                 <input
@@ -201,10 +205,10 @@ export default function SplitPdfPage() {
                   value={customRange}
                   onChange={(e) => setCustomRange(e.target.value)}
                   placeholder="e.g. 1-2, 3, 4-6"
-                  className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 font-mono"
+                  className="w-full px-3 py-2 text-xs font-bold rounded-sm border border-[#D5DCE6] bg-white text-[#111111] focus:outline-none focus:border-[#2860E8] focus:ring-1 focus:ring-[#2860E8] font-mono"
                 />
-                <div className="flex items-start gap-1.5 text-xs text-slate-500">
-                  <Info className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div className="flex items-start gap-1.5 text-[11px] text-[#556275]">
+                  <Info className="w-3.5 h-3.5 text-[#2860E8] mt-0.5 flex-shrink-0" />
                   <span>
                     Separate with commas. For example: &ldquo;1-2, 3, 4-6&rdquo; creates 3 PDFs (pages 1-2, page 3, pages 4-6). Document has {totalPages} pages.
                   </span>
@@ -216,16 +220,16 @@ export default function SplitPdfPage() {
           {/* Progress bar */}
           {processing && (
             <div className="space-y-2 pt-2">
-              <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
+              <div className="flex items-center justify-between text-xs text-[#556275] font-semibold">
                 <span className="flex items-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2860E8]" />
                   {progressStatus}
                 </span>
-                <span>{progressPercent}%</span>
+                <span className="font-mono">{progressPercent}%</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div className="w-full h-1.5 bg-[#F3F6FA] border border-[#D5DCE6] overflow-hidden">
                 <div
-                  className="h-full bg-blue-600 transition-all duration-300 rounded-full"
+                  className="h-full bg-[#2860E8] transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -233,7 +237,7 @@ export default function SplitPdfPage() {
           )}
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+            <div className="p-3.5 rounded-sm bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
               {error}
             </div>
           )}
@@ -242,10 +246,10 @@ export default function SplitPdfPage() {
           {!processing && (
             <button
               onClick={handleSplit}
-              className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm sm:text-base shadow-button hover:shadow-button-hover transition-all flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-6 rounded-sm bg-[#2860E8] hover:bg-[#1d4ed8] text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-button transition-all flex items-center justify-center gap-2"
             >
               <Scissors className="w-4 h-4" />
-              <span>Split PDF Document</span>
+              <span>SPLIT PDF DOCUMENT</span>
             </button>
           )}
         </div>

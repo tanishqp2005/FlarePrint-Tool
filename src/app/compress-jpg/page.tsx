@@ -112,8 +112,8 @@ export default function CompressJpgPage() {
 
   return (
     <ToolLayout
-      category="Compress & Resize"
-      title="Compress JPG to Target Size"
+      category="Image Utilities"
+      title="Compress JPG"
       description="Reduce image file size to your exact target in KB or MB with automatic quality optimization."
     >
       {/* 1. Upload Dropzone */}
@@ -121,7 +121,7 @@ export default function CompressJpgPage() {
         <Dropzone
           accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png"
           title="Drop your JPG or PNG image here"
-          buttonText="Choose Image"
+          buttonText="Choose Image File"
           helperText="JPG and PNG images up to 25 MB"
           onFilesSelected={handleFilesSelected}
         />
@@ -129,11 +129,11 @@ export default function CompressJpgPage() {
 
       {/* 2. File Selected - Configuration */}
       {file && !result && (
-        <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-6 max-w-xl mx-auto">
+        <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 sm:p-8 shadow-flare space-y-6 max-w-xl mx-auto">
           {/* File summary & preview thumbnail */}
-          <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+          <div className="flex items-center gap-4 p-3.5 rounded-sm bg-[#F3F6FA] border border-[#D5DCE6]">
             {previewUrl && (
-              <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-200 flex-shrink-0">
+              <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#D5DCE6] bg-slate-200 flex-shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewUrl}
@@ -143,17 +143,17 @@ export default function CompressJpgPage() {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-sm text-slate-800 truncate">
+              <h3 className="font-bold text-xs uppercase tracking-tight text-[#111111] truncate">
                 {file.name}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Original size: <span className="font-medium text-slate-700">{formatBytes(file.size)}</span>
+              <p className="text-[11px] text-[#556275] mt-0.5">
+                Original size: <span className="font-bold text-[#111111] font-mono">{formatBytes(file.size)}</span>
               </p>
             </div>
             <button
               onClick={handleReset}
               disabled={processing}
-              className="text-xs text-slate-400 hover:text-red-600 font-medium transition-colors"
+              className="text-xs text-[#556275] hover:text-red-600 font-bold uppercase tracking-wider transition-colors"
             >
               Change
             </button>
@@ -161,12 +161,12 @@ export default function CompressJpgPage() {
 
           {/* Preset buttons */}
           <div className="space-y-3">
-            <label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-              <Settings2 className="w-4 h-4 text-blue-600" />
+            <label className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+              <Settings2 className="w-3.5 h-3.5 text-[#2860E8]" />
               Target File Size
             </label>
 
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 gap-2">
               {PRESETS.map((preset) => (
                 <button
                   key={preset.label}
@@ -176,10 +176,10 @@ export default function CompressJpgPage() {
                     setSelectedPresetBytes(preset.bytes);
                     setIsCustom(false);
                   }}
-                  className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold border transition-all ${
+                  className={`py-2.5 px-3 rounded-sm text-xs font-bold uppercase tracking-wider border transition-all ${
                     !isCustom && selectedPresetBytes === preset.bytes
-                      ? "bg-blue-600 text-white border-blue-600 shadow-button"
-                      : "bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                      ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                      : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
                   }`}
                 >
                   {preset.label}
@@ -190,10 +190,10 @@ export default function CompressJpgPage() {
                 type="button"
                 disabled={processing}
                 onClick={() => setIsCustom(true)}
-                className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold border transition-all ${
+                className={`py-2.5 px-3 rounded-sm text-xs font-bold uppercase tracking-wider border transition-all ${
                   isCustom
-                    ? "bg-blue-600 text-white border-blue-600 shadow-button"
-                    : "bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                    ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                    : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
                 }`}
               >
                 Custom
@@ -210,14 +210,14 @@ export default function CompressJpgPage() {
                   value={customValue}
                   onChange={(e) => setCustomValue(e.target.value)}
                   disabled={processing}
-                  className="flex-1 px-3.5 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600"
+                  className="flex-1 px-3 py-2 text-xs font-bold rounded-sm border border-[#D5DCE6] bg-white text-[#111111] focus:outline-none focus:border-[#2860E8] focus:ring-1 focus:ring-[#2860E8]"
                   placeholder="Target size"
                 />
                 <select
                   value={customUnit}
                   onChange={(e) => setCustomUnit(e.target.value as "KB" | "MB")}
                   disabled={processing}
-                  className="px-3 py-2 text-sm rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600/30"
+                  className="px-3 py-2 text-xs font-bold rounded-sm border border-[#D5DCE6] bg-white text-[#111111] focus:outline-none focus:border-[#2860E8]"
                 >
                   <option value="KB">KB</option>
                   <option value="MB">MB</option>
@@ -227,9 +227,9 @@ export default function CompressJpgPage() {
           </div>
 
           {/* Compression Mode Selector */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-blue-600" />
+          <div className="space-y-2 pt-2 border-t border-[#D5DCE6]">
+            <label className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#2860E8]" />
               Compression Mode
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -237,10 +237,10 @@ export default function CompressJpgPage() {
                 type="button"
                 disabled={processing}
                 onClick={() => setMode("balanced")}
-                className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center ${
+                className={`py-2 px-2.5 rounded-sm text-xs font-bold uppercase tracking-wider border transition-all text-center ${
                   mode === "balanced"
-                    ? "bg-blue-600 text-white border-blue-600 shadow-button"
-                    : "bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                    ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                    : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
                 }`}
               >
                 Balanced
@@ -249,10 +249,10 @@ export default function CompressJpgPage() {
                 type="button"
                 disabled={processing}
                 onClick={() => setMode("strong")}
-                className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center ${
+                className={`py-2 px-2.5 rounded-sm text-xs font-bold uppercase tracking-wider border transition-all text-center ${
                   mode === "strong"
-                    ? "bg-blue-600 text-white border-blue-600 shadow-button"
-                    : "bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                    ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                    : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
                 }`}
               >
                 Strong
@@ -261,16 +261,16 @@ export default function CompressJpgPage() {
                 type="button"
                 disabled={processing}
                 onClick={() => setMode("maximum")}
-                className={`py-2 px-2.5 rounded-xl text-xs font-semibold border transition-all text-center ${
+                className={`py-2 px-2.5 rounded-sm text-xs font-bold uppercase tracking-wider border transition-all text-center ${
                   mode === "maximum"
-                    ? "bg-blue-600 text-white border-blue-600 shadow-button"
-                    : "bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-slate-50"
+                    ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                    : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
                 }`}
               >
                 Maximum
               </button>
             </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
+            <p className="text-[11px] text-[#556275] leading-relaxed">
               {mode === "balanced" &&
                 "Preserves high visual clarity. Tries quality optimization first, with modest dimension scaling if required."}
               {mode === "strong" &&
@@ -280,7 +280,7 @@ export default function CompressJpgPage() {
             </p>
 
             {mode === "maximum" && (
-              <div className="flex items-start gap-1.5 p-2.5 rounded-lg bg-amber-50/80 border border-amber-200/70 text-[11px] text-amber-800 leading-relaxed">
+              <div className="flex items-start gap-1.5 p-2.5 rounded-sm bg-amber-50 border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
                 <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
                 <span>
                   Notice: Maximum mode will reduce dimensions and quality aggressively to satisfy very small target file sizes.
@@ -292,16 +292,16 @@ export default function CompressJpgPage() {
           {/* Processing state */}
           {processing && (
             <div className="space-y-2 pt-2">
-              <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
+              <div className="flex items-center justify-between text-xs text-[#556275] font-semibold">
                 <span className="flex items-center gap-1.5 truncate max-w-[80%]">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2860E8] flex-shrink-0" />
                   <span className="truncate">{progressStatus}</span>
                 </span>
-                <span>{progressPercent}%</span>
+                <span className="font-mono">{progressPercent}%</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+              <div className="w-full h-1.5 bg-[#F3F6FA] border border-[#D5DCE6] overflow-hidden">
                 <div
-                  className="h-full bg-blue-600 transition-all duration-300 rounded-full"
+                  className="h-full bg-[#2860E8] transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -309,7 +309,7 @@ export default function CompressJpgPage() {
           )}
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+            <div className="p-3.5 rounded-sm bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
               {error}
             </div>
           )}
@@ -318,10 +318,10 @@ export default function CompressJpgPage() {
           {!processing && (
             <button
               onClick={handleCompress}
-              className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm sm:text-base shadow-button hover:shadow-button-hover transition-all flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-6 rounded-sm bg-[#2860E8] hover:bg-[#1d4ed8] text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-button transition-all flex items-center justify-center gap-2"
             >
               <ImageIcon className="w-4 h-4" />
-              <span>Compress Image</span>
+              <span>COMPRESS IMAGE</span>
             </button>
           )}
         </div>
@@ -360,12 +360,12 @@ export default function CompressJpgPage() {
           />
 
           {/* Before / After visual preview */}
-          <div className="max-w-xl mx-auto bg-white border border-border rounded-2xl p-5 shadow-card space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <Eye className="w-4 h-4 text-blue-600" />
+          <div className="max-w-xl mx-auto bg-white border border-[#D5DCE6] rounded-sm p-5 shadow-flare space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+              <Eye className="w-4 h-4 text-[#2860E8]" />
               Visual Quality Preview
             </h4>
-            <div className="rounded-xl overflow-hidden border border-slate-200 max-h-80 flex items-center justify-center bg-slate-900/5">
+            <div className="rounded-sm overflow-hidden border border-[#D5DCE6] max-h-80 flex items-center justify-center bg-[#F3F6FA]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={result.previewUrl}
@@ -373,7 +373,7 @@ export default function CompressJpgPage() {
                 className="max-h-80 max-w-full object-contain"
               />
             </div>
-            <p className="text-[11px] text-slate-400 text-center">
+            <p className="text-[11px] text-[#556275] text-center font-mono">
               Original: {result.originalWidth} × {result.originalHeight} px • Output: {result.width} × {result.height} px ({formatBytes(result.resultSize)})
             </p>
           </div>

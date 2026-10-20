@@ -77,17 +77,26 @@ export function Dropzone({
   };
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("w-full max-w-xl mx-auto", className)}>
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
+        tabIndex={0}
+        role="button"
+        aria-label="Upload document or image"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
         className={cn(
-          "relative border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all duration-200 group bg-white",
+          "relative border-2 border-dashed rounded-sm p-8 sm:p-12 text-center cursor-pointer transition-all duration-200 group bg-white focus:outline-none focus:ring-2 focus:ring-[#2860E8] focus:border-[#2860E8]",
           isDragOver
-            ? "border-blue-600 bg-blue-50/50 scale-[1.01]"
-            : "border-slate-300 hover:border-blue-500 hover:bg-slate-50/60 shadow-subtle"
+            ? "border-[#2860E8] bg-[#EBF1FD]/40 scale-[1.01]"
+            : "border-[#D5DCE6] hover:border-[#2860E8] hover:bg-[#F3F6FA]/60 shadow-subtle"
         )}
       >
         <input
@@ -102,37 +111,37 @@ export function Dropzone({
         <div className="flex flex-col items-center justify-center max-w-md mx-auto space-y-4">
           <div
             className={cn(
-              "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-200 shadow-sm",
+              "w-14 h-14 rounded-sm border flex items-center justify-center transition-all duration-200",
               isDragOver
-                ? "bg-blue-600 text-white scale-110"
-                : "bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white"
+                ? "bg-[#2860E8] text-white border-[#2860E8] scale-105"
+                : "bg-[#F3F6FA] text-[#2860E8] border-[#D5DCE6] group-hover:bg-[#2860E8] group-hover:text-white group-hover:border-[#2860E8]"
             )}
           >
-            <UploadCloud className="w-8 h-8" />
+            <UploadCloud className="w-7 h-7" />
           </div>
 
           <div className="space-y-1">
-            <h3 className="text-lg sm:text-xl font-semibold text-slate-800">
+            <h3 className="text-base sm:text-lg font-extrabold uppercase tracking-tight text-[#111111]">
               {title}
             </h3>
-            <p className="text-sm text-slate-400 font-medium">or</p>
+            <p className="text-xs text-[#556275] uppercase font-bold tracking-wider">or</p>
           </div>
 
           <button
             type="button"
-            className="px-6 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-button hover:shadow-button-hover transition-all pointer-events-none"
+            className="px-6 py-2.5 rounded-sm bg-[#2860E8] group-hover:bg-[#1d4ed8] text-white text-xs font-bold uppercase tracking-wider shadow-button transition-all pointer-events-none"
           >
-            {buttonText}
+            {buttonText.toUpperCase()}
           </button>
 
           {helperText && (
-            <p className="text-xs text-slate-400 mt-2">{helperText}</p>
+            <p className="text-[11px] text-[#556275] pt-1 font-medium">{helperText}</p>
           )}
         </div>
       </div>
 
       {errorMessage && (
-        <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+        <div className="mt-3 p-3 rounded-sm bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{errorMessage}</span>
         </div>

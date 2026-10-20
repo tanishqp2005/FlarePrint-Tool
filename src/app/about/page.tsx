@@ -9,7 +9,7 @@ export default function AboutPage() {
       {/* Brand Hero */}
       <div className="text-center space-y-4">
         <div className="flex justify-center">
-          <div className="relative w-14 h-14">
+          <div className="relative w-14 h-14 border border-[#D5DCE6] p-2 bg-white rounded-sm shadow-xs">
             <Image
               src="/android-chrome-192x192.png"
               alt="FlarePrint Logo"
@@ -19,97 +19,103 @@ export default function AboutPage() {
             />
           </div>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-          About FlarePrint Tools
+        <div className="inline-block text-[11px] font-extrabold uppercase tracking-widest text-[#2860E8]">
+          [ DIGITAL DOCUMENT PLATFORM ]
+        </div>
+        <h1 className="text-3xl sm:text-5xl font-black text-[#111111] uppercase tracking-tight leading-[1.05]">
+          ABOUT FLAREPRINT <span className="text-[#2860E8]">TOOLS.</span>
         </h1>
-        <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-          Simple, fast, and privacy-first digital document utilities designed to handle everyday file tasks right in your browser.
+        <p className="text-sm sm:text-base text-[#556275] max-w-2xl mx-auto leading-relaxed">
+          Fast, transparent, and browser-first digital document utilities designed to handle everyday file tasks right in your local browser sandbox.
         </p>
       </div>
 
       {/* Mission */}
-      <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-4">
-        <h2 className="text-xl font-bold text-slate-900">
-          Our Purpose
+      <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 sm:p-8 shadow-flare space-y-4">
+        <div className="text-[11px] font-extrabold uppercase tracking-widest text-[#2860E8]">
+          01 — PURPOSE
+        </div>
+        <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-[#111111]">
+          ENGINEERED FOR IMMEDIATE UTILITY
         </h2>
-        <p className="text-slate-600 leading-relaxed text-sm sm:text-base">
-          Every day, students, professionals, and individuals need to quickly compress a PDF for an application portal, resize an image for a form, convert pictures to PDF, or organize documents. Most existing online tools are cluttered with aggressive ads, upload your personal files to foreign cloud servers, or impose strict paywalls.
+        <p className="text-[#556275] leading-relaxed text-sm">
+          Every day, students, professionals, and teams need to quickly compress a PDF for an application portal, resize an image for a form, convert pictures to PDF, or organize documents. Traditional web tools clutter workflows with aggressive ads, upload personal documents to remote cloud servers, or impose unexpected paywalls.
         </p>
-        <p className="text-slate-600 leading-relaxed text-sm sm:text-base">
-          <strong>FlarePrint Tools</strong> was built with a simple premise: <em>Free tools for your documents, processed locally on your machine.</em> By running operations directly in your browser using modern Web APIs, your confidential documents never leave your device.
+        <p className="text-[#556275] leading-relaxed text-sm">
+          <strong className="text-[#111111]">FlarePrint Tools</strong> operates on a clear principle: <em className="text-[#111111]">Instant utilities for your documents, processed 100% locally on your machine.</em> By running operations directly in your browser using modern Web APIs, your confidential documents never leave your device.
         </p>
       </div>
 
       {/* Product Ecosystem & Distinction */}
-      <div className="bg-blue-50/50 border border-blue-200/80 rounded-2xl p-6 sm:p-8 space-y-6">
+      <div className="bg-[#F3F6FA] border border-[#D5DCE6] rounded-sm p-6 sm:p-8 space-y-6">
         <div className="space-y-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-100/70 px-2.5 py-1 rounded-full border border-blue-200">
-            Ecosystem Architecture
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#2860E8] bg-white px-2.5 py-1 rounded-sm border border-[#D5DCE6]">
+            ECOSYSTEM ARCHITECTURE
           </span>
-          <h2 className="text-xl font-bold text-slate-900">
-            FlarePrint Tools vs. FlarePrint APVM
+          <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-[#111111]">
+            FLAREPRINT TOOLS VS. FLAREPRINT APVM
           </h2>
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-xs sm:text-sm text-[#556275] leading-relaxed">
             FlarePrint operates two complementary, yet completely independent products:
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-subtle space-y-2">
-            <div className="flex items-center gap-2 font-bold text-blue-700 text-sm">
-              <Zap className="w-4 h-4" />
+          <div className="bg-white p-5 rounded-sm border border-[#D5DCE6] shadow-xs space-y-2">
+            <div className="flex items-center gap-2 font-extrabold uppercase tracking-wider text-[#2860E8] text-xs">
+              <Zap className="w-4 h-4 text-[#2860E8]" />
               <span>FlarePrint Tools (Digital)</span>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Our standalone web platform offering free digital document utilities including PDF compression, image resizing, conversion, merging, and splitting. Operates 100% independently without requiring any printing.
+            <p className="text-xs text-[#556275] leading-relaxed">
+              Our standalone web platform offering free digital document utilities including PDF compression, image resizing, conversion, merging, and splitting. Operates 100% independently without requiring any physical printing.
             </p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-blue-100 shadow-subtle space-y-2">
-            <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
-              <Printer className="w-4 h-4 text-slate-500" />
+          <div className="bg-white p-5 rounded-sm border border-[#D5DCE6] shadow-xs space-y-2">
+            <div className="flex items-center gap-2 font-extrabold uppercase tracking-wider text-[#111111] text-xs">
+              <Printer className="w-4 h-4 text-[#556275]" />
               <span>FlarePrint APVM (Physical)</span>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-[#556275] leading-relaxed">
               Our automated physical kiosk infrastructure that allows students and campus communities to quickly print physical documents on-demand at designated campus locations.
             </p>
           </div>
         </div>
 
-        <p className="text-xs text-slate-500 italic">
-          In future updates, users will have an optional shortcut to send processed documents to nearby FlarePrint APVM kiosks, but the digital tools will always remain fully standalone and free.
+        <p className="text-xs text-[#556275]">
+          Users can optionally send processed documents to nearby FlarePrint APVM kiosks, but the digital tools will always remain fully standalone and free.
         </p>
       </div>
 
       {/* Core Principles */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-border shadow-subtle space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5" />
+        <div className="bg-white p-6 rounded-sm border border-[#D5DCE6] shadow-flare space-y-3">
+          <div className="w-9 h-9 rounded-sm bg-[#EBF1FD] text-[#2860E8] flex items-center justify-center border border-[#D5DCE6]">
+            <ShieldCheck className="w-4 h-4" />
           </div>
-          <h3 className="font-bold text-base text-slate-900">Browser-First Privacy</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Files stay in your browser during processing and are not uploaded to our servers. Your documents remain strictly private to you.
+          <h3 className="font-extrabold text-xs uppercase tracking-wider text-[#111111]">Browser-First Privacy</h3>
+          <p className="text-xs text-[#556275] leading-relaxed">
+            Files stay in your browser during processing and are not uploaded to remote servers. Your documents remain strictly private.
           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-border shadow-subtle space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <Zap className="w-5 h-5" />
+        <div className="bg-white p-6 rounded-sm border border-[#D5DCE6] shadow-flare space-y-3">
+          <div className="w-9 h-9 rounded-sm bg-[#EBF1FD] text-[#2860E8] flex items-center justify-center border border-[#D5DCE6]">
+            <Zap className="w-4 h-4" />
           </div>
-          <h3 className="font-bold text-base text-slate-900">High Performance</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Zero network upload and download bottlenecks. Processing is handled using your device&apos;s native processing power for near-instant results.
+          <h3 className="font-extrabold text-xs uppercase tracking-wider text-[#111111]">Zero Upload Lag</h3>
+          <p className="text-xs text-[#556275] leading-relaxed">
+            Zero network upload and download bottlenecks. Processing runs directly via device CPU and WebAssembly for instant results.
           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl border border-border shadow-subtle space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Layers className="w-5 h-5" />
+        <div className="bg-white p-6 rounded-sm border border-[#D5DCE6] shadow-flare space-y-3">
+          <div className="w-9 h-9 rounded-sm bg-[#EBF1FD] text-[#2860E8] flex items-center justify-center border border-[#D5DCE6]">
+            <Layers className="w-4 h-4" />
           </div>
-          <h3 className="font-bold text-base text-slate-900">No Account Friction</h3>
-          <p className="text-xs text-slate-600 leading-relaxed">
-            No signup forms, passwords, or credit card requirements. Just select a tool and process your documents immediately.
+          <h3 className="font-extrabold text-xs uppercase tracking-wider text-[#111111]">No Account Barrier</h3>
+          <p className="text-xs text-[#556275] leading-relaxed">
+            No signup forms, passwords, or credit card requirements. Select a tool and process your documents immediately.
           </p>
         </div>
       </div>
@@ -118,7 +124,7 @@ export default function AboutPage() {
       <div className="text-center pt-4">
         <Link
           href="/#tools"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-button transition-all"
+          className="inline-flex items-center gap-2 px-6 py-3.5 rounded-sm bg-[#2860E8] hover:bg-[#1E4DC0] text-white text-xs font-extrabold uppercase tracking-wider shadow-button transition-all"
         >
           <span>Explore All 7 Document Tools</span>
           <ArrowRight className="w-4 h-4" />

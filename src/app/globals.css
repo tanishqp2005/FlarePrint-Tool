@@ -3,32 +3,32 @@
 @tailwind utilities;
 
 :root {
-  --background: 210 50% 98%;
-  --foreground: 240 10% 3.9%;
+  --background: 0 0% 100%;
+  --foreground: 0 0% 6.7%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
+  --card-foreground: 0 0% 6.7%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
-  --primary: 221 83% 53%;
-  --primary-hover: 221 83% 45%;
+  --popover-foreground: 0 0% 6.7%;
+  --primary: 222 80% 53%;
+  --primary-hover: 222 80% 46%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
+  --secondary: 214 32% 96.5%;
+  --secondary-foreground: 222 38% 15%;
+  --muted: 214 32% 96.5%;
+  --muted-foreground: 215 16% 40%;
+  --accent: 214 32% 96.5%;
+  --accent-foreground: 222 38% 15%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 98%;
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 221 83% 53%;
-  --radius: 0.75rem;
+  --border: 215 25% 87%;
+  --input: 215 25% 87%;
+  --ring: 222 80% 53%;
+  --radius: 0.25rem;
 }
 
 body {
-  color: hsl(var(--foreground));
-  background-color: hsl(var(--background));
+  color: #111111;
+  background-color: #FFFFFF;
   min-height: 100vh;
   font-feature-settings: "rlig" 1, "calt" 1;
   -webkit-font-smoothing: antialiased;

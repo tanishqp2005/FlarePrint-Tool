@@ -198,16 +198,16 @@ export default function PdfToJpgPage() {
 
   return (
     <ToolLayout
-      category="Convert"
+      category="PDF Utilities"
       title="PDF to JPG"
-      description="Extract and convert PDF pages into crisp JPG images at 150 or 300 DPI with single-page or bulk ZIP download."
+      description="Extract and convert PDF pages into high-resolution JPG images at 150 or 300 DPI with single-page or bulk ZIP download."
     >
       {/* 1. Dropzone */}
       {!file && !resultBlob && (
         <Dropzone
           accept=".pdf,application/pdf"
           title="Drop your PDF here"
-          buttonText="Choose PDF"
+          buttonText="Choose PDF File"
           helperText="Standard PDF documents up to 50 MB"
           onFilesSelected={handleFilesSelected}
         />
@@ -215,13 +215,13 @@ export default function PdfToJpgPage() {
 
       {/* Loading PDF preview state */}
       {loadingPreviews && (
-        <div className="bg-white border border-border rounded-2xl p-12 text-center shadow-card max-w-xl mx-auto space-y-3">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
-          <h3 className="font-semibold text-slate-800 text-base">
+        <div className="bg-white border border-[#D5DCE6] rounded-sm p-10 text-center shadow-flare max-w-xl mx-auto space-y-3">
+          <Loader2 className="w-8 h-8 animate-spin text-[#2860E8] mx-auto" />
+          <h3 className="font-extrabold uppercase tracking-tight text-[#111111] text-sm">
             Analyzing PDF & Generating Previews...
           </h3>
-          <p className="text-xs text-slate-500">
-            Rendering page thumbnails locally in your browser
+          <p className="text-xs text-[#556275]">
+            Rendering page thumbnails locally in your browser memory
           </p>
         </div>
       )}
@@ -230,11 +230,13 @@ export default function PdfToJpgPage() {
       {file && !loadingPreviews && !resultBlob && (
         <div className="space-y-6">
           {/* Top Info & Select all/none */}
-          <div className="bg-white border border-border rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="bg-white border border-[#D5DCE6] rounded-sm p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-flare">
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">{file.name}</h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {totalPages} {totalPages === 1 ? "page" : "pages"} • {selectedPages.size} selected for conversion
+              <h3 className="font-extrabold text-xs uppercase tracking-tight text-[#111111] truncate max-w-md">
+                {file.name}
+              </h3>
+              <p className="text-[11px] text-[#556275] mt-0.5">
+                {totalPages} {totalPages === 1 ? "page" : "pages"} • <span className="font-bold text-[#2860E8] font-mono">{selectedPages.size}</span> selected for extraction
               </p>
             </div>
 
@@ -242,21 +244,21 @@ export default function PdfToJpgPage() {
               <button
                 type="button"
                 onClick={selectAll}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
+                className="px-3 py-1.5 rounded-sm border border-[#D5DCE6] hover:bg-[#F3F6FA] text-[11px] font-bold uppercase tracking-wider text-[#111111] transition-colors"
               >
                 Select All
               </button>
               <button
                 type="button"
                 onClick={deselectAll}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
+                className="px-3 py-1.5 rounded-sm border border-[#D5DCE6] hover:bg-[#F3F6FA] text-[11px] font-bold uppercase tracking-wider text-[#111111] transition-colors"
               >
                 Deselect All
               </button>
               <button
                 type="button"
                 onClick={handleReset}
-                className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-red-50 text-xs font-semibold text-slate-500 hover:text-red-600"
+                className="px-3 py-1.5 rounded-sm border border-[#D5DCE6] hover:bg-red-50 text-[11px] font-bold uppercase tracking-wider text-[#556275] hover:text-red-600 transition-colors"
               >
                 Change File
               </button>
@@ -271,23 +273,23 @@ export default function PdfToJpgPage() {
                 <div
                   key={preview.pageNumber}
                   onClick={() => togglePageSelection(preview.pageNumber)}
-                  className={`group relative bg-white border rounded-xl p-2 cursor-pointer transition-all ${
+                  className={`group relative bg-white border rounded-sm p-2 cursor-pointer transition-all ${
                     isSelected
-                      ? "border-blue-600 ring-2 ring-blue-600/20 shadow-md"
-                      : "border-slate-200 opacity-60 hover:opacity-100 hover:border-slate-300"
+                      ? "border-[#2860E8] ring-2 ring-[#2860E8]/20 shadow-sm"
+                      : "border-[#D5DCE6] opacity-60 hover:opacity-100 hover:border-[#111111]"
                   }`}
                 >
                   {/* Checkbox indicator */}
                   <div className="absolute top-3 right-3 z-10">
                     {isSelected ? (
-                      <CheckSquare className="w-5 h-5 text-blue-600 bg-white rounded" />
+                      <CheckSquare className="w-4 h-4 text-[#2860E8] bg-white rounded-none" />
                     ) : (
-                      <Square className="w-5 h-5 text-slate-400 bg-white rounded" />
+                      <Square className="w-4 h-4 text-[#8C9BAE] bg-white rounded-none" />
                     )}
                   </div>
 
                   {/* Thumbnail */}
-                  <div className="w-full aspect-[3/4] bg-slate-100 rounded-lg overflow-hidden border border-slate-100 flex items-center justify-center">
+                  <div className="w-full aspect-[3/4] bg-[#F3F6FA] rounded-sm overflow-hidden border border-[#D5DCE6] flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={preview.thumbnailUrl}
@@ -296,7 +298,7 @@ export default function PdfToJpgPage() {
                     />
                   </div>
 
-                  <p className="text-center text-xs font-bold text-slate-700 mt-2">
+                  <p className="text-center text-[11px] font-extrabold uppercase tracking-wider text-[#111111] mt-2">
                     Page {preview.pageNumber}
                   </p>
                 </div>
@@ -305,9 +307,9 @@ export default function PdfToJpgPage() {
           </div>
 
           {/* Resolution Configuration & Convert */}
-          <div className="bg-white border border-border rounded-2xl p-6 shadow-card space-y-4 max-w-xl mx-auto">
-            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Settings2 className="w-4 h-4 text-blue-600" />
+          <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 sm:p-7 shadow-flare space-y-5 max-w-xl mx-auto">
+            <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#111111] flex items-center gap-2">
+              <Settings2 className="w-3.5 h-3.5 text-[#2860E8]" />
               Image Quality & Resolution
             </h4>
 
@@ -315,43 +317,51 @@ export default function PdfToJpgPage() {
               <button
                 type="button"
                 onClick={() => setDpi(150)}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-3.5 rounded-sm border text-left transition-all ${
                   dpi === 150
-                    ? "bg-blue-50 border-blue-500 text-blue-900"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    ? "bg-[#EBF1FD] border-[#2860E8] text-[#111111]"
+                    : "bg-white border-[#D5DCE6] text-[#556275] hover:bg-[#F3F6FA]"
                 }`}
               >
-                <span className="font-bold text-sm block">150 DPI</span>
-                <span className="text-xs text-slate-500">Standard (Fast, web & email)</span>
+                <span className="font-extrabold text-xs uppercase tracking-wider block text-[#111111]">
+                  150 DPI
+                </span>
+                <span className="text-[11px] text-[#556275] mt-0.5 block">
+                  Standard Web & Email (Faster)
+                </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setDpi(300)}
-                className={`p-3 rounded-xl border text-left transition-all ${
+                className={`p-3.5 rounded-sm border text-left transition-all ${
                   dpi === 300
-                    ? "bg-blue-50 border-blue-500 text-blue-900"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    ? "bg-[#EBF1FD] border-[#2860E8] text-[#111111]"
+                    : "bg-white border-[#D5DCE6] text-[#556275] hover:bg-[#F3F6FA]"
                 }`}
               >
-                <span className="font-bold text-sm block">300 DPI</span>
-                <span className="text-xs text-slate-500">High Resolution (Print quality)</span>
+                <span className="font-extrabold text-xs uppercase tracking-wider block text-[#111111]">
+                  300 DPI
+                </span>
+                <span className="text-[11px] text-[#556275] mt-0.5 block">
+                  High Resolution (Print Quality)
+                </span>
               </button>
             </div>
 
             {/* Progress bar */}
             {processing && (
               <div className="space-y-2 pt-2">
-                <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                <div className="flex items-center justify-between text-xs text-[#556275] font-medium">
+                  <span className="flex items-center gap-1.5 font-bold uppercase tracking-tight text-[#111111]">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2860E8]" />
                     {progressStatus}
                   </span>
-                  <span>{progressPercent}%</span>
+                  <span className="font-mono font-bold text-[#2860E8]">{progressPercent}%</span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="w-full h-1.5 rounded-none bg-[#E8EEF5] overflow-hidden">
                   <div
-                    className="h-full bg-blue-600 transition-all duration-300 rounded-full"
+                    className="h-full bg-[#2860E8] transition-all duration-300"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
@@ -359,7 +369,7 @@ export default function PdfToJpgPage() {
             )}
 
             {error && (
-              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+              <div className="p-3.5 rounded-sm bg-red-50 border border-red-200 text-red-700 text-xs">
                 {error}
               </div>
             )}
@@ -368,7 +378,7 @@ export default function PdfToJpgPage() {
               <button
                 onClick={handleConvert}
                 disabled={selectedPages.size === 0}
-                className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm sm:text-base shadow-button hover:shadow-button-hover transition-all flex items-center justify-center gap-2"
+                className="w-full py-3.5 px-6 rounded-sm bg-[#2860E8] hover:bg-[#1E4DC0] disabled:opacity-50 text-white font-extrabold text-xs sm:text-sm uppercase tracking-wider shadow-button transition-all flex items-center justify-center gap-2"
               >
                 <FileImage className="w-4 h-4" />
                 <span>

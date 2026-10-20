@@ -130,7 +130,7 @@ export default function ResizeJpgPage() {
 
   return (
     <ToolLayout
-      category="Compress & Resize"
+      category="Image Utilities"
       title="Resize JPG"
       description="Change image dimensions with high-quality bicubic resampling and instant aspect-ratio calculation."
     >
@@ -139,7 +139,7 @@ export default function ResizeJpgPage() {
         <Dropzone
           accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png"
           title="Drop your JPG or PNG here"
-          buttonText="Choose Image"
+          buttonText="Choose Image File"
           helperText="JPG, JPEG, and PNG images up to 25 MB"
           onFilesSelected={handleFilesSelected}
         />
@@ -147,11 +147,11 @@ export default function ResizeJpgPage() {
 
       {/* 2. File Selected - Configuration */}
       {file && !result && (
-        <div className="bg-white border border-border rounded-2xl p-6 sm:p-8 shadow-card space-y-6 max-w-xl mx-auto">
+        <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 sm:p-8 shadow-flare space-y-6 max-w-xl mx-auto">
           {/* File summary & thumbnail */}
-          <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+          <div className="flex items-center gap-4 p-3.5 rounded-sm bg-[#F3F6FA] border border-[#D5DCE6]">
             {previewUrl && (
-              <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-200 flex-shrink-0">
+              <div className="w-12 h-12 rounded-sm overflow-hidden border border-[#D5DCE6] bg-slate-200 flex-shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewUrl}
@@ -161,17 +161,17 @@ export default function ResizeJpgPage() {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h3 className="font-semibold text-sm text-slate-800 truncate">
+              <h3 className="font-bold text-xs uppercase tracking-tight text-[#111111] truncate">
                 {file.name}
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Original: <span className="font-medium text-slate-700">{originalWidth} × {originalHeight} px</span> • {formatBytes(file.size)}
+              <p className="text-[11px] text-[#556275] mt-0.5">
+                Original: <span className="font-bold text-[#111111] font-mono">{originalWidth} × {originalHeight} px</span> • {formatBytes(file.size)}
               </p>
             </div>
             <button
               onClick={handleReset}
               disabled={processing}
-              className="text-xs text-slate-400 hover:text-red-600 font-medium transition-colors"
+              className="text-xs text-[#556275] hover:text-red-600 font-bold uppercase tracking-wider transition-colors"
             >
               Change
             </button>
@@ -180,16 +180,16 @@ export default function ResizeJpgPage() {
           {/* Dimension Controls */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-bold text-slate-800">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#111111]">
                 Custom Dimensions
               </label>
               <button
                 type="button"
                 onClick={() => setLockAspectRatio(!lockAspectRatio)}
-                className={`text-xs font-semibold px-2.5 py-1 rounded-md border flex items-center gap-1.5 transition-colors ${
+                className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-sm border flex items-center gap-1.5 transition-colors ${
                   lockAspectRatio
-                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                    : "bg-slate-100 text-slate-600 border-slate-200"
+                    ? "bg-[#EBF1FD] text-[#2860E8] border-[#2860E8]/40"
+                    : "bg-[#F3F6FA] text-[#556275] border-[#D5DCE6]"
                 }`}
               >
                 {lockAspectRatio ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
@@ -199,7 +199,7 @@ export default function ResizeJpgPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#556275] block mb-1">
                   Width (px)
                 </label>
                 <input
@@ -208,12 +208,12 @@ export default function ResizeJpgPage() {
                   max="10000"
                   value={width || ""}
                   onChange={(e) => handleWidthChange(parseInt(e.target.value) || 0)}
-                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600"
+                  className="w-full px-3 py-2 text-xs font-bold font-mono rounded-sm border border-[#D5DCE6] bg-white text-[#111111] focus:outline-none focus:border-[#2860E8] focus:ring-1 focus:ring-[#2860E8]"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600 block mb-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#556275] block mb-1">
                   Height (px)
                 </label>
                 <input
@@ -222,14 +222,14 @@ export default function ResizeJpgPage() {
                   max="10000"
                   value={height || ""}
                   onChange={(e) => handleHeightChange(parseInt(e.target.value) || 0)}
-                  className="w-full px-3.5 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600"
+                  className="w-full px-3 py-2 text-xs font-bold font-mono rounded-sm border border-[#D5DCE6] bg-white text-[#111111] focus:outline-none focus:border-[#2860E8] focus:ring-1 focus:ring-[#2860E8]"
                 />
               </div>
             </div>
 
             {/* Quick Scale Buttons */}
             <div>
-              <span className="text-xs text-slate-500 font-medium block mb-1.5">
+              <span className="text-[11px] text-[#556275] font-bold uppercase tracking-wider block mb-1.5">
                 Quick Scale
               </span>
               <div className="grid grid-cols-4 gap-2">
@@ -238,7 +238,7 @@ export default function ResizeJpgPage() {
                     key={pct}
                     type="button"
                     onClick={() => handleScalePercent(pct)}
-                    className="py-1.5 text-xs font-semibold rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors"
+                    className="py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm border border-[#D5DCE6] hover:bg-[#F3F6FA] text-[#111111] transition-colors"
                   >
                     {pct}%
                   </button>
@@ -248,7 +248,7 @@ export default function ResizeJpgPage() {
 
             {/* Common presets */}
             <div>
-              <span className="text-xs text-slate-500 font-medium block mb-1.5">
+              <span className="text-[11px] text-[#556275] font-bold uppercase tracking-wider block mb-1.5">
                 Common Presets
               </span>
               <div className="grid grid-cols-2 gap-2">
@@ -257,7 +257,7 @@ export default function ResizeJpgPage() {
                     key={preset.label}
                     type="button"
                     onClick={() => handlePresetSelect(preset)}
-                    className="py-2 px-3 text-xs font-medium rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50/40 text-slate-700 text-left transition-colors truncate"
+                    className="py-2 px-3 text-xs font-bold rounded-sm border border-[#D5DCE6] hover:border-[#2860E8] hover:bg-[#EBF1FD]/40 text-[#111111] text-left transition-colors truncate"
                   >
                     {preset.label}
                   </button>
@@ -267,7 +267,7 @@ export default function ResizeJpgPage() {
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+            <div className="p-3.5 rounded-sm bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
               {error}
             </div>
           )}
@@ -276,7 +276,7 @@ export default function ResizeJpgPage() {
           <button
             onClick={handleResize}
             disabled={processing || width <= 0 || height <= 0}
-            className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm sm:text-base shadow-button hover:shadow-button-hover transition-all flex items-center justify-center gap-2"
+            className="w-full py-3.5 px-6 rounded-sm bg-[#2860E8] hover:bg-[#1d4ed8] disabled:opacity-50 text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-button transition-all flex items-center justify-center gap-2"
           >
             {processing ? (
               <>
@@ -311,12 +311,12 @@ export default function ResizeJpgPage() {
           />
 
           {/* Resized image preview */}
-          <div className="max-w-xl mx-auto bg-white border border-border rounded-2xl p-5 shadow-card space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-blue-600" />
+          <div className="max-w-xl mx-auto bg-white border border-[#D5DCE6] rounded-sm p-5 shadow-flare space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-[#2860E8]" />
               Resized Image Preview
             </h4>
-            <div className="rounded-xl overflow-hidden border border-slate-200 max-h-80 flex items-center justify-center bg-slate-900/5">
+            <div className="rounded-sm overflow-hidden border border-[#D5DCE6] max-h-80 flex items-center justify-center bg-[#F3F6FA]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={result.previewUrl}
@@ -324,7 +324,7 @@ export default function ResizeJpgPage() {
                 className="max-h-80 max-w-full object-contain"
               />
             </div>
-            <p className="text-[11px] text-slate-400 text-center">
+            <p className="text-[11px] text-[#556275] text-center font-mono">
               Rendered at {result.width} × {result.height} px • {formatBytes(result.size)}
             </p>
           </div>
