@@ -16,7 +16,7 @@ interface DropzoneProps {
 
 export function Dropzone({
   accept,
-  multiple = false,
+  multiple = true,
   title,
   buttonText,
   helperText,
@@ -54,6 +54,11 @@ export function Dropzone({
       onFilesSelected([validFiles[0]]);
     } else {
       onFilesSelected(validFiles);
+    }
+
+    // Reset input value so re-selecting the same file works
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 

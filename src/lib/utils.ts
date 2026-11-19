@@ -28,3 +28,12 @@ export function downloadBlob(blob: Blob | Uint8Array, filename: string, mimeType
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
+
+export function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+export function getFileExtension(filename: string): string {
+  const parts = filename.split(".");
+  return parts.length > 1 ? parts.pop()!.toUpperCase() : "";
+}

@@ -4,326 +4,457 @@ import React, { useState } from "react";
 import { ToolLayout } from "@/components/ToolLayout";
 import { Dropzone } from "@/components/Dropzone";
 import { ResultCard } from "@/components/ResultCard";
-import { formatBytes, downloadBlob } from "@/lib/utils";
+import { BatchFileList, BatchFileItem } from "@/components/BatchFileList";
+import { BatchProgress } from "@/components/BatchProgress";
+import { BatchResultsView, BatchResultItem } from "@/components/BatchResultsView";
+import { formatBytes, downloadBlob, yieldToEventLoop } from "@/lib/utils";
 import { convertImagesToPdf, ImageToPdfOptions } from "@/lib/pdf-utils";
-import { FileText, Plus, Trash2, ArrowLeft, ArrowRight, Loader2, Settings2 } from "lucide-react";
+import { createZipBundle } from "@/lib/zip-utils";
+import {
+  FileText,
+  Files,
+  Settings2,
+  FileDown,
+  Layers,
+} from "lucide-react";
 
-interface ImageItem {
+interface ProcessedPdfRecord {
   id: string;
-  file: File;
-  previewUrl: string;
+  originalFileName: string;
+  downloadFileName: string;
+  data?: Uint8Array;
+  size?: number;
+  error?: string;
+  status: "success" | "error";
+  previewUrl?: string;
 }
 
 export default function JpgToPdfPage() {
-  const [images, setImages] = useState<ImageItem[]>([]);
+  const [fileItems, setFileItems] = useState<BatchFileItem[]>([]);
+  const [conversionTarget, setConversionTarget] = useState<"combined" | "separate">("combined");
   const [orientation, setOrientation] = useState<"auto" | "portrait" | "landscape">("auto");
   const [margin, setMargin] = useState<"none" | "small" | "normal">("none");
 
+  // Batch progress state
   const [processing, setProcessing] = useState(false);
-  const [progressPercent, setProgressPercent] = useState(0);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [overallPercent, setOverallPercent] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
-  const [pdfResult, setPdfResult] = useState<Uint8Array | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [currentFileName, setCurrentFileName] = useState("");
 
-  const handleFilesSelected = (files: File[]) => {
-    const newItems: ImageItem[] = files.map((file) => ({
+  // Results state
+  const [combinedPdf, setCombinedPdf] = useState<Uint8Array | null>(null);
+  const [separateRecords, setSeparateRecords] = useState<ProcessedPdfRecord[] | null>(null);
+  const [isZipping, setIsZipping] = useState(false);
+
+  const handleFilesSelected = (newFiles: File[]) => {
+    const newItems: BatchFileItem[] = newFiles.map((file) => ({
       id: Math.random().toString(36).substring(2, 9),
       file,
       previewUrl: URL.createObjectURL(file),
     }));
-    setImages((prev) => [...prev, ...newItems]);
-    setError(null);
+
+    setFileItems((prev) => [...prev, ...newItems]);
+    setCombinedPdf(null);
+    setSeparateRecords(null);
   };
 
-  const handleRemove = (id: string) => {
-    setImages((prev) => {
+  const handleRemoveFile = (id: string) => {
+    setFileItems((prev) => {
       const target = prev.find((item) => item.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
       return prev.filter((item) => item.id !== id);
     });
   };
 
-  const handleMove = (index: number, direction: "left" | "right") => {
-    const targetIdx = direction === "left" ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= images.length) return;
-    const newArr = [...images];
+  const handleMoveFile = (index: number, direction: "up" | "down") => {
+    const targetIdx = direction === "up" ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= fileItems.length) return;
+    const newArr = [...fileItems];
     const temp = newArr[index];
     newArr[index] = newArr[targetIdx];
     newArr[targetIdx] = temp;
-    setImages(newArr);
+    setFileItems(newArr);
+  };
+
+  const handleReorder = (startIndex: number, endIndex: number) => {
+    const newArr = [...fileItems];
+    const [removed] = newArr.splice(startIndex, 1);
+    newArr.splice(endIndex, 0, removed);
+    setFileItems(newArr);
+  };
+
+  const handleClearAll = () => {
+    fileItems.forEach((item) => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    });
+    setFileItems([]);
+    setCombinedPdf(null);
+    setSeparateRecords(null);
   };
 
   const handleConvert = async () => {
-    if (images.length === 0) return;
+    if (fileItems.length === 0) return;
     setProcessing(true);
-    setError(null);
-    setProgressPercent(10);
-    setProgressStatus("Preparing images for PDF document...");
+    setCombinedPdf(null);
+    setSeparateRecords(null);
+    setCurrentFileIndex(0);
+    setOverallPercent(0);
 
-    try {
-      const options: ImageToPdfOptions = { orientation, margin };
-      const bytes = await convertImagesToPdf(
-        images.map((img) => ({ file: img.file })),
-        options,
-        (percent, status) => {
-          setProgressPercent(percent);
-          setProgressStatus(status);
+    const options: ImageToPdfOptions = { orientation, margin };
+
+    if (conversionTarget === "combined") {
+      // Combine all images into 1 PDF
+      setCurrentFileName("Combined Document");
+      setProgressStatus("Compiling images into unified PDF...");
+      try {
+        const bytes = await convertImagesToPdf(
+          fileItems.map((item) => ({ file: item.file })),
+          options,
+          (percent, status) => {
+            setOverallPercent(percent);
+            setProgressStatus(status);
+          }
+        );
+        setCombinedPdf(bytes);
+      } catch (err: any) {
+        setSeparateRecords([
+          {
+            id: "error",
+            originalFileName: "Combined PDF",
+            downloadFileName: "Combined.pdf",
+            error: err.message || "Failed to create combined PDF",
+            status: "error",
+          },
+        ]);
+      }
+    } else {
+      // Convert each image into a separate PDF
+      const records: ProcessedPdfRecord[] = [];
+      const total = fileItems.length;
+
+      for (let i = 0; i < total; i++) {
+        const item = fileItems[i];
+        setCurrentFileIndex(i + 1);
+        setCurrentFileName(item.file.name);
+        setProgressStatus("Converting image to PDF...");
+        setOverallPercent(Math.round((i / total) * 100));
+
+        const baseName = item.file.name.replace(/\.[^/.]+$/, "");
+        const downloadFileName = `${baseName}.pdf`;
+
+        try {
+          const bytes = await convertImagesToPdf(
+            [{ file: item.file }],
+            options
+          );
+
+          records.push({
+            id: item.id,
+            originalFileName: item.file.name,
+            downloadFileName,
+            data: bytes,
+            size: bytes.byteLength,
+            status: "success",
+            previewUrl: item.previewUrl,
+          });
+        } catch (err: any) {
+          records.push({
+            id: item.id,
+            originalFileName: item.file.name,
+            downloadFileName,
+            error: err.message || "Failed to convert image to PDF",
+            status: "error",
+          });
         }
-      );
-      setPdfResult(bytes);
-    } catch (err: any) {
-      setError(err.message || "Failed to convert images to PDF");
-    } finally {
-      setProcessing(false);
+
+        await yieldToEventLoop();
+      }
+
+      setOverallPercent(100);
+      setSeparateRecords(records);
     }
-  };
 
-  const handleDownload = () => {
-    if (!pdfResult) return;
-    const filename = images.length === 1
-      ? `${images[0].file.name.replace(/\.[^/.]+$/, "")}.pdf`
-      : "FlarePrint_Images.pdf";
-    downloadBlob(pdfResult, filename, "application/pdf");
-  };
-
-  const handleReset = () => {
-    images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
-    setImages([]);
-    setPdfResult(null);
-    setError(null);
     setProcessing(false);
   };
 
-  const totalInputBytes = images.reduce((acc, img) => acc + img.file.size, 0);
+  const handleDownloadCombined = () => {
+    if (!combinedPdf) return;
+    const filename =
+      fileItems.length === 1
+        ? `${fileItems[0].file.name.replace(/\.[^/.]+$/, "")}.pdf`
+        : "FlarePrint_Images.pdf";
+    downloadBlob(combinedPdf, filename, "application/pdf");
+  };
+
+  const handleDownloadSingleSeparate = (record: ProcessedPdfRecord) => {
+    if (!record.data) return;
+    downloadBlob(record.data, record.downloadFileName, "application/pdf");
+  };
+
+  const handleDownloadAllZip = async () => {
+    if (!separateRecords) return;
+    const successful = separateRecords.filter((r) => r.status === "success" && r.data);
+    if (successful.length === 0) return;
+
+    if (successful.length === 1) {
+      handleDownloadSingleSeparate(successful[0]);
+      return;
+    }
+
+    setIsZipping(true);
+    try {
+      const zipItems = successful.map((r) => ({
+        name: r.downloadFileName,
+        data: r.data!,
+      }));
+      const zipBlob = await createZipBundle(zipItems);
+      downloadBlob(zipBlob, "FlarePrint_Images_PDFs.zip", "application/zip");
+    } finally {
+      setIsZipping(false);
+    }
+  };
+
+  const handleReset = () => {
+    fileItems.forEach((item) => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    });
+    setFileItems([]);
+    setCombinedPdf(null);
+    setSeparateRecords(null);
+    setProcessing(false);
+    setOverallPercent(0);
+  };
+
+  const totalInputBytes = fileItems.reduce((acc, item) => acc + item.file.size, 0);
+
+  const separateBatchItems: BatchResultItem[] = (separateRecords || []).map((r) => ({
+    id: r.id,
+    originalFileName: r.originalFileName,
+    downloadFileName: r.downloadFileName,
+    resultSize: r.size,
+    status: r.status,
+    error: r.error,
+    badge: r.status === "error" ? "FAILED" : "PDF READY",
+    badgeType: r.status === "error" ? "error" : "success",
+    previewUrl: r.previewUrl,
+    onDownload: () => handleDownloadSingleSeparate(r),
+  }));
 
   return (
     <ToolLayout
       category="PDF Utilities"
       title="JPG to PDF"
-      description="Convert single or multiple JPG and PNG images into a clean, unified PDF document in seconds."
+      description="Convert single or multiple JPG and PNG images into PDFs. Combine them into a single document or convert each into its own PDF."
     >
-      {/* 1. Initial Dropzone if empty */}
-      {images.length === 0 && !pdfResult && (
+      {/* 1. Upload Dropzone */}
+      {fileItems.length === 0 && !combinedPdf && !separateRecords && (
         <Dropzone
           accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png"
           multiple={true}
           title="Drop one or multiple images here"
-          buttonText="Choose Images"
-          helperText="Upload JPG or PNG files to merge into a single PDF"
+          buttonText="Choose Image Files"
+          helperText="Upload JPG or PNG files to convert into PDF"
           onFilesSelected={handleFilesSelected}
         />
       )}
 
-      {/* 2. Uploaded Images Grid & Configuration */}
-      {images.length > 0 && !pdfResult && (
-        <div className="space-y-6 max-w-3xl mx-auto">
-          {/* Top toolbar */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-4 rounded-sm border border-[#D5DCE6] shadow-subtle">
-            <div>
-              <h3 className="font-bold text-[#111111] text-xs uppercase tracking-wider">
-                {images.length} {images.length === 1 ? "Image" : "Images"} Selected
-              </h3>
-              <p className="text-[11px] text-[#556275] mt-0.5">
-                Total size: <span className="font-bold text-[#111111] font-mono">{formatBytes(totalInputBytes)}</span> • Drag or use arrows to reorder pages
-              </p>
-            </div>
+      {/* 2. Files Selected - List & Settings */}
+      {fileItems.length > 0 && !combinedPdf && !separateRecords && (
+        <div className="space-y-6 max-w-2xl mx-auto">
+          {/* File list */}
+          <BatchFileList
+            files={fileItems}
+            accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png"
+            onAddFiles={handleFilesSelected}
+            onRemoveFile={handleRemoveFile}
+            onClearAll={handleClearAll}
+            allowReorder={conversionTarget === "combined"}
+            onMove={handleMoveFile}
+            onReorder={handleReorder}
+            disabled={processing}
+          />
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <label className="cursor-pointer px-3 py-1.5 rounded-sm border border-[#D5DCE6] hover:bg-[#F3F6FA] text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5 transition-colors">
-                <Plus className="w-3.5 h-3.5 text-[#2860E8]" />
-                <span>Add more</span>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/jpg,.jpg,.jpeg,.png"
-                  onChange={(e) => {
-                    if (e.target.files) handleFilesSelected(Array.from(e.target.files));
-                  }}
-                  className="hidden"
-                />
+          {/* Configuration */}
+          <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 sm:p-7 shadow-flare space-y-6">
+            {/* Target Output Choice: Combined vs Separate */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-[#2860E8]" />
+                Output Document Mode
               </label>
-              <button
-                onClick={handleReset}
-                className="px-3 py-1.5 rounded-sm border border-[#D5DCE6] hover:bg-red-50 text-xs font-bold uppercase tracking-wider text-[#556275] hover:text-red-600 transition-colors"
-              >
-                Clear all
-              </button>
-            </div>
-          </div>
 
-          {/* Thumbnails Gallery */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
-            {images.map((item, index) => (
-              <div
-                key={item.id}
-                className="group relative bg-white border border-[#D5DCE6] rounded-sm p-2 shadow-subtle flex flex-col justify-between"
-              >
-                {/* Page number badge */}
-                <div className="absolute top-3 left-3 z-10 bg-[#172033] text-white text-[10px] font-bold font-mono px-2 py-0.5 rounded-sm">
-                  #{index + 1}
-                </div>
-
-                {/* Delete button */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => handleRemove(item.id)}
-                  title="Remove image"
-                  className="absolute top-3 right-3 z-10 w-6 h-6 rounded-sm bg-white/90 border border-[#D5DCE6] text-[#556275] hover:text-red-600 hover:bg-white shadow-xs flex items-center justify-center transition-colors"
+                  type="button"
+                  disabled={processing}
+                  onClick={() => setConversionTarget("combined")}
+                  className={`p-3 rounded-sm border text-left transition-all ${
+                    conversionTarget === "combined"
+                      ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                      : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
+                  }`}
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Combine All into One PDF
+                    </span>
+                  </div>
+                  <p
+                    className={`text-[11px] mt-1 ${
+                      conversionTarget === "combined" ? "text-white/80" : "text-[#556275]"
+                    }`}
+                  >
+                    Merges all {fileItems.length} images into a single multi-page PDF.
+                  </p>
                 </button>
 
-                {/* Thumbnail image */}
-                <div className="w-full aspect-[4/3] rounded-sm overflow-hidden bg-[#F3F6FA] flex items-center justify-center border border-[#D5DCE6]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.previewUrl}
-                    alt={item.file.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                {/* Caption & Reorder arrows */}
-                <div className="pt-2 flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-[#556275] truncate max-w-[90px]">
-                    {item.file.name}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleMove(index, "left")}
-                      disabled={index === 0}
-                      title="Move left"
-                      className="p-1 rounded-sm border border-[#D5DCE6] hover:bg-[#F3F6FA] text-[#556275] disabled:opacity-30"
-                    >
-                      <ArrowLeft className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => handleMove(index, "right")}
-                      disabled={index === images.length - 1}
-                      title="Move right"
-                      className="p-1 rounded-sm border border-[#D5DCE6] hover:bg-[#F3F6FA] text-[#556275] disabled:opacity-30"
-                    >
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => setConversionTarget("separate")}
+                  className={`p-3 rounded-sm border text-left transition-all ${
+                    conversionTarget === "separate"
+                      ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                      : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Files className="w-4 h-4" />
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Separate PDFs per Image
+                    </span>
                   </div>
-                </div>
+                  <p
+                    className={`text-[11px] mt-1 ${
+                      conversionTarget === "separate" ? "text-white/80" : "text-[#556275]"
+                    }`}
+                  >
+                    Converts each image into its own independent PDF with ZIP download.
+                  </p>
+                </button>
               </div>
-            ))}
-          </div>
+            </div>
 
-          {/* Options Card */}
-          <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 shadow-flare space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
-              <Settings2 className="w-3.5 h-3.5 text-[#2860E8]" />
-              Document Layout Settings
-            </h4>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-[#556275] block mb-1.5">
+            {/* Page Layout Settings */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-[#D5DCE6]">
+              {/* Orientation */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#111111]">
                   Page Orientation
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: "auto", label: "Auto" },
-                    { id: "portrait", label: "Portrait" },
-                    { id: "landscape", label: "Landscape" },
-                  ].map((opt) => (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(["auto", "portrait", "landscape"] as const).map((o) => (
                     <button
-                      key={opt.id}
+                      key={o}
                       type="button"
-                      onClick={() => setOrientation(opt.id as any)}
-                      className={`py-2 text-xs font-bold uppercase tracking-wider rounded-sm border transition-all ${
-                        orientation === opt.id
-                          ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                      disabled={processing}
+                      onClick={() => setOrientation(o)}
+                      className={`py-2 px-1 rounded-sm text-xs font-bold uppercase tracking-wider border transition-colors text-center ${
+                        orientation === o
+                          ? "bg-[#2860E8] text-white border-[#2860E8]"
                           : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
                       }`}
                     >
-                      {opt.label}
+                      {o}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-[#556275] block mb-1.5">
-                  Margins
+              {/* Margins */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#111111]">
+                  Page Margins
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: "none", label: "No Margin" },
-                    { id: "small", label: "Small" },
-                    { id: "normal", label: "Normal" },
-                  ].map((opt) => (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(["none", "small", "normal"] as const).map((m) => (
                     <button
-                      key={opt.id}
+                      key={m}
                       type="button"
-                      onClick={() => setMargin(opt.id as any)}
-                      className={`py-2 text-xs font-bold uppercase tracking-wider rounded-sm border transition-all ${
-                        margin === opt.id
-                          ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                      disabled={processing}
+                      onClick={() => setMargin(m)}
+                      className={`py-2 px-1 rounded-sm text-xs font-bold uppercase tracking-wider border transition-colors text-center ${
+                        margin === m
+                          ? "bg-[#2860E8] text-white border-[#2860E8]"
                           : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
                       }`}
                     >
-                      {opt.label}
+                      {m}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Progress Bar */}
-            {processing && (
-              <div className="space-y-2 pt-2">
-                <div className="flex items-center justify-between text-xs text-[#556275] font-semibold">
-                  <span className="flex items-center gap-1.5">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2860E8]" />
-                    {progressStatus}
-                  </span>
-                  <span className="font-mono">{progressPercent}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-[#F3F6FA] border border-[#D5DCE6] overflow-hidden">
-                  <div
-                    className="h-full bg-[#2860E8] transition-all duration-300"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3.5 rounded-sm bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
-                {error}
-              </div>
-            )}
-
-            {/* Convert CTA */}
+            {/* Action button */}
             {!processing && (
               <button
+                type="button"
                 onClick={handleConvert}
                 className="w-full py-3.5 px-6 rounded-sm bg-[#2860E8] hover:bg-[#1d4ed8] text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-button transition-all flex items-center justify-center gap-2"
               >
-                <FileText className="w-4 h-4" />
-                <span>CONVERT {images.length} {images.length === 1 ? "IMAGE" : "IMAGES"} TO PDF</span>
+                <FileDown className="w-4 h-4" />
+                <span>
+                  {conversionTarget === "combined"
+                    ? `CONVERT ${fileItems.length} IMAGES TO 1 PDF`
+                    : `CONVERT ${fileItems.length} IMAGES TO INDIVIDUAL PDFS`}
+                </span>
               </button>
             )}
           </div>
+
+          {/* Progress Component */}
+          {processing && (
+            <BatchProgress
+              current={currentFileIndex}
+              total={fileItems.length}
+              overallPercent={overallPercent}
+              currentFileName={currentFileName}
+              statusMessage={progressStatus}
+            />
+          )}
         </div>
       )}
 
-      {/* 3. Result State */}
-      {pdfResult && (
-        <ResultCard
-          title="PDF Document Ready"
-          filename={images.length === 1 ? `${images[0].file.name.replace(/\.[^/.]+$/, "")}.pdf` : "FlarePrint_Images.pdf"}
-          resultSize={pdfResult.byteLength}
-          onDownload={handleDownload}
-          onReset={handleReset}
-          resetButtonText="Convert more images"
-          extraStats={[
-            { label: "Pages Added", value: `${images.length}` },
-            { label: "Format", value: "PDF Document" },
-          ]}
-        />
+      {/* 3. Results View */}
+      {/* 3A. Combined PDF Result */}
+      {combinedPdf && (
+        <div className="space-y-6">
+          <ResultCard
+            title="PDF Document Created"
+            filename={
+              fileItems.length === 1
+                ? `${fileItems[0].file.name.replace(/\.[^/.]+$/, "")}.pdf`
+                : "FlarePrint_Images.pdf"
+            }
+            originalSize={totalInputBytes}
+            resultSize={combinedPdf.byteLength}
+            onDownload={handleDownloadCombined}
+            onReset={handleReset}
+            resetButtonText="Convert more images"
+            extraStats={[
+              { label: "Pages Added", value: `${fileItems.length}` },
+              { label: "Mode", value: "Combined PDF" },
+            ]}
+          />
+        </div>
+      )}
+
+      {/* 3B. Separate PDFs Result */}
+      {separateRecords && (
+        <div className="space-y-6">
+          <BatchResultsView
+            title="Image to PDF Conversion Complete"
+            results={separateBatchItems}
+            onDownloadAllZip={handleDownloadAllZip}
+            isZipping={isZipping}
+            zipButtonText="Download All as ZIP"
+            onReset={handleReset}
+            resetButtonText="Convert More Images"
+          />
+        </div>
       )}
     </ToolLayout>
   );

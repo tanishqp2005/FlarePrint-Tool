@@ -4,277 +4,375 @@ import React, { useState } from "react";
 import { ToolLayout } from "@/components/ToolLayout";
 import { Dropzone } from "@/components/Dropzone";
 import { ResultCard } from "@/components/ResultCard";
-import { formatBytes, downloadBlob } from "@/lib/utils";
+import { BatchFileList, BatchFileItem } from "@/components/BatchFileList";
+import { BatchProgress } from "@/components/BatchProgress";
+import { BatchResultsView, BatchResultItem } from "@/components/BatchResultsView";
+import { formatBytes, downloadBlob, yieldToEventLoop } from "@/lib/utils";
 import { splitPdfFile, SplitResultFile } from "@/lib/pdf-utils";
-import { createZipBundle } from "@/lib/zip-utils";
+import { createZipBundle, ZipFileItem } from "@/lib/zip-utils";
 import { PDFDocument } from "pdf-lib";
-import { Scissors, Loader2, FileText, Settings2, Info } from "lucide-react";
+import {
+  Scissors,
+  Loader2,
+  FileText,
+  Settings2,
+  Info,
+  FileDown,
+} from "lucide-react";
+
+interface SplitPdfItem extends BatchFileItem {
+  pageCount?: number;
+}
+
+interface ProcessedSplitRecord {
+  id: string;
+  originalFileName: string;
+  baseName: string;
+  results: SplitResultFile[];
+  status: "success" | "error";
+  error?: string;
+}
 
 export default function SplitPdfPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [totalPages, setTotalPages] = useState<number>(0);
+  const [fileItems, setFileItems] = useState<SplitPdfItem[]>([]);
   const [splitMode, setSplitMode] = useState<"all" | "ranges">("all");
   const [customRange, setCustomRange] = useState<string>("1-2, 3");
 
+  // Batch progress state
   const [processing, setProcessing] = useState(false);
-  const [progressPercent, setProgressPercent] = useState(0);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [overallPercent, setOverallPercent] = useState(0);
   const [progressStatus, setProgressStatus] = useState("");
+  const [currentFileName, setCurrentFileName] = useState("");
 
-  const [results, setResults] = useState<SplitResultFile[] | null>(null);
-  const [zipBlob, setZipBlob] = useState<Blob | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Results state
+  const [processedRecords, setProcessedRecords] = useState<ProcessedSplitRecord[] | null>(null);
+  const [isZipping, setIsZipping] = useState(false);
 
-  const handleFilesSelected = async (files: File[]) => {
-    if (files.length === 0) return;
-    const selected = files[0];
-    setFile(selected);
-    setResults(null);
-    setZipBlob(null);
-    setError(null);
+  const handleFilesSelected = async (newFiles: File[]) => {
+    const newItems: SplitPdfItem[] = [];
 
-    try {
-      const ab = await selected.arrayBuffer();
-      const doc = await PDFDocument.load(ab, { ignoreEncryption: true });
-      const count = doc.getPageCount();
-      setTotalPages(count);
-
-      // Suggest initial range based on page count
-      if (count > 2) {
-        setCustomRange(`1-${Math.min(2, count)}, ${Math.min(3, count)}`);
-      } else {
-        setCustomRange("1");
+    for (const file of newFiles) {
+      const id = Math.random().toString(36).substring(2, 9);
+      try {
+        const ab = await file.arrayBuffer();
+        const doc = await PDFDocument.load(ab, { ignoreEncryption: true });
+        const count = doc.getPageCount();
+        newItems.push({
+          id,
+          file,
+          pageCount: count,
+          extraInfo: `${count} ${count === 1 ? "page" : "pages"}`,
+        });
+      } catch {
+        newItems.push({
+          id,
+          file,
+          extraInfo: "PDF",
+        });
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to inspect PDF structure");
     }
+
+    setFileItems((prev) => [...prev, ...newItems]);
+    setProcessedRecords(null);
   };
 
-  const handleSplit = async () => {
-    if (!file) return;
+  const handleRemoveFile = (id: string) => {
+    setFileItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleClearAll = () => {
+    setFileItems([]);
+    setProcessedRecords(null);
+  };
+
+  const executeBatchSplit = async () => {
+    if (fileItems.length === 0) return;
     setProcessing(true);
-    setError(null);
-    setProgressPercent(10);
-    setProgressStatus("Preparing PDF extraction engine...");
+    setProcessedRecords(null);
+    setCurrentFileIndex(0);
+    setOverallPercent(0);
 
-    try {
-      const filesList = await splitPdfFile(
-        file,
-        splitMode,
-        customRange,
-        (percent, status) => {
-          setProgressPercent(percent);
-          setProgressStatus(status);
-        }
-      );
+    const records: ProcessedSplitRecord[] = [];
+    const total = fileItems.length;
 
-      setResults(filesList);
+    for (let i = 0; i < total; i++) {
+      const item = fileItems[i];
+      setCurrentFileIndex(i + 1);
+      setCurrentFileName(item.file.name);
+      setProgressStatus(`Analyzing structure...`);
+      setOverallPercent(Math.round((i / total) * 100));
 
-      // If more than 1 file, bundle into a zip archive
-      if (filesList.length > 1) {
-        setProgressStatus("Packaging into ZIP archive...");
-        const zip = await createZipBundle(
-          filesList.map((f) => ({ name: f.filename, data: f.data }))
+      const baseName = item.file.name.replace(/\.pdf$/i, "");
+
+      try {
+        const splitList = await splitPdfFile(
+          item.file,
+          splitMode,
+          customRange,
+          (percent, status) => {
+            const stepOverall = Math.round(((i + percent / 100) / total) * 100);
+            setOverallPercent(stepOverall);
+            setProgressStatus(status);
+          }
         );
-        setZipBlob(zip);
-      } else {
-        setZipBlob(null);
+
+        records.push({
+          id: item.id,
+          originalFileName: item.file.name,
+          baseName,
+          results: splitList,
+          status: "success",
+        });
+      } catch (err: any) {
+        records.push({
+          id: item.id,
+          originalFileName: item.file.name,
+          baseName,
+          results: [],
+          status: "error",
+          error: err.message || "Failed to split PDF document",
+        });
       }
 
-      setProgressPercent(100);
-      setProgressStatus("Done!");
-    } catch (err: any) {
-      setError(err.message || "Failed to split PDF document");
-    } finally {
-      setProcessing(false);
+      await yieldToEventLoop();
+    }
+
+    setOverallPercent(100);
+    setProcessedRecords(records);
+    setProcessing(false);
+  };
+
+  const handleDownloadSinglePdfResult = async (record: ProcessedSplitRecord) => {
+    if (record.results.length === 0) return;
+
+    if (record.results.length === 1) {
+      downloadBlob(record.results[0].data, record.results[0].filename, "application/pdf");
+    } else {
+      const zipItems: ZipFileItem[] = record.results.map((r) => ({
+        name: r.filename,
+        data: r.data,
+      }));
+      const zipBlob = await createZipBundle(zipItems);
+      downloadBlob(zipBlob, `${record.baseName}_split.zip`, "application/zip");
     }
   };
 
-  const handleDownload = () => {
-    if (!results || results.length === 0 || !file) return;
-    const baseName = file.name.replace(/\.pdf$/i, "");
+  const handleDownloadAllZip = async () => {
+    if (!processedRecords) return;
+    const allSuccessful = processedRecords.filter((r) => r.status === "success" && r.results.length > 0);
+    if (allSuccessful.length === 0) return;
 
-    if (results.length === 1) {
-      downloadBlob(results[0].data, results[0].filename, "application/pdf");
-    } else if (zipBlob) {
-      downloadBlob(zipBlob, `${baseName}_split.zip`, "application/zip");
+    if (allSuccessful.length === 1 && allSuccessful[0].results.length === 1) {
+      handleDownloadSinglePdfResult(allSuccessful[0]);
+      return;
+    }
+
+    setIsZipping(true);
+    try {
+      const zipItems: ZipFileItem[] = [];
+      const isMultiplePdfs = allSuccessful.length > 1;
+
+      for (const record of allSuccessful) {
+        for (const fileItem of record.results) {
+          const pathInZip = isMultiplePdfs
+            ? `${record.baseName}/${fileItem.filename}`
+            : fileItem.filename;
+          zipItems.push({
+            name: pathInZip,
+            data: fileItem.data,
+          });
+        }
+      }
+
+      const zipBlob = await createZipBundle(zipItems);
+      downloadBlob(zipBlob, "FlarePrint_Split_PDFs.zip", "application/zip");
+    } finally {
+      setIsZipping(false);
     }
   };
 
   const handleReset = () => {
-    setFile(null);
-    setTotalPages(0);
-    setResults(null);
-    setZipBlob(null);
-    setError(null);
+    setFileItems([]);
+    setProcessedRecords(null);
     setProcessing(false);
+    setOverallPercent(0);
   };
+
+  const batchResultItems: BatchResultItem[] = (processedRecords || []).map((r) => {
+    const totalBytes = r.results.reduce((acc, f) => acc + f.data.byteLength, 0);
+    return {
+      id: r.id,
+      originalFileName: r.originalFileName,
+      downloadFileName:
+        r.results.length === 1
+          ? r.results[0].filename
+          : `${r.baseName}_split.zip`,
+      resultSize: totalBytes > 0 ? totalBytes : undefined,
+      status: r.status,
+      error: r.error,
+      badge:
+        r.status === "error"
+          ? "FAILED"
+          : `${r.results.length} ${r.results.length === 1 ? "FILE" : "FILES"} CREATED`,
+      badgeType: r.status === "error" ? "error" : "success",
+      details: `${r.results.length} extracted PDF parts`,
+      onDownload: () => handleDownloadSinglePdfResult(r),
+    };
+  });
 
   return (
     <ToolLayout
       category="PDF Utilities"
       title="Split PDF"
-      description="Separate your PDF into individual pages or extract custom page ranges into standalone PDF documents."
+      description="Separate your PDF documents into individual pages or extract custom page ranges into standalone PDF files."
     >
-      {/* 1. Dropzone */}
-      {!file && !results && (
+      {/* 1. Upload Dropzone */}
+      {fileItems.length === 0 && !processedRecords && (
         <Dropzone
           accept=".pdf,application/pdf"
-          title="Drop your PDF here"
-          buttonText="Choose PDF File"
-          helperText="Standard PDF documents up to 50 MB"
+          multiple={true}
+          title="Drop your PDF files here"
+          buttonText="Choose PDF Files"
+          helperText="Upload single or multiple PDF documents up to 50 MB each"
           onFilesSelected={handleFilesSelected}
         />
       )}
 
-      {/* 2. File Selected - Configuration */}
-      {file && !results && (
-        <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 sm:p-8 shadow-flare space-y-6 max-w-xl mx-auto">
-          {/* File summary */}
-          <div className="flex items-center gap-3.5 p-3.5 rounded-sm bg-[#F3F6FA] border border-[#D5DCE6]">
-            <div className="w-10 h-10 rounded-sm bg-white border border-[#D5DCE6] text-[#2860E8] flex items-center justify-center flex-shrink-0 font-bold">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="font-bold text-xs uppercase tracking-tight text-[#111111] truncate">
-                {file.name}
-              </h3>
-              <p className="text-[11px] text-[#556275] mt-0.5">
-                {totalPages} {totalPages === 1 ? "page" : "pages"} • <span className="font-bold text-[#111111] font-mono">{formatBytes(file.size)}</span>
-              </p>
-            </div>
-            <button
-              onClick={handleReset}
-              disabled={processing}
-              className="text-xs text-[#556275] hover:text-red-600 font-bold uppercase tracking-wider transition-colors"
-            >
-              Change
-            </button>
-          </div>
+      {/* 2. Files Selected - List & Settings */}
+      {fileItems.length > 0 && !processedRecords && (
+        <div className="space-y-6 max-w-xl mx-auto">
+          {/* File list */}
+          <BatchFileList
+            files={fileItems}
+            accept=".pdf,application/pdf"
+            onAddFiles={handleFilesSelected}
+            onRemoveFile={handleRemoveFile}
+            onClearAll={handleClearAll}
+            disabled={processing}
+          />
 
-          {/* Split Mode Selector */}
-          <div className="space-y-4">
-            <label className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
-              <Settings2 className="w-3.5 h-3.5 text-[#2860E8]" />
-              Choose Splitting Method
-            </label>
+          {/* Configuration Form */}
+          <div className="bg-white border border-[#D5DCE6] rounded-sm p-6 sm:p-7 shadow-flare space-y-6">
+            <div className="space-y-3">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+                <Settings2 className="w-3.5 h-3.5 text-[#2860E8]" />
+                Splitting Method
+              </label>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSplitMode("all")}
-                className={`p-4 rounded-sm border text-left transition-all ${
-                  splitMode === "all"
-                    ? "bg-[#EBF1FD] border-[#2860E8] text-[#111111] shadow-xs"
-                    : "bg-white border-[#D5DCE6] text-[#556275] hover:bg-[#F3F6FA]"
-                }`}
-              >
-                <span className="font-extrabold text-xs uppercase tracking-wider block text-[#111111]">
-                  Split Every Page
-                </span>
-                <span className="text-[11px] text-[#556275] mt-0.5 block">
-                  Generate {totalPages} separate 1-page PDF files
-                </span>
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => setSplitMode("all")}
+                  className={`p-3 rounded-sm border text-left transition-all ${
+                    splitMode === "all"
+                      ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                      : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
+                  }`}
+                >
+                  <div className="font-extrabold text-xs uppercase tracking-wider">
+                    Extract All Pages
+                  </div>
+                  <p
+                    className={`text-[11px] mt-0.5 ${
+                      splitMode === "all" ? "text-white/80" : "text-[#556275]"
+                    }`}
+                  >
+                    Separates every page of each document into its own PDF.
+                  </p>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setSplitMode("ranges")}
-                className={`p-4 rounded-sm border text-left transition-all ${
-                  splitMode === "ranges"
-                    ? "bg-[#EBF1FD] border-[#2860E8] text-[#111111] shadow-xs"
-                    : "bg-white border-[#D5DCE6] text-[#556275] hover:bg-[#F3F6FA]"
-                }`}
-              >
-                <span className="font-extrabold text-xs uppercase tracking-wider block text-[#111111]">
-                  Custom Page Ranges
-                </span>
-                <span className="text-[11px] text-[#556275] mt-0.5 block">
-                  Specify exact ranges (e.g. 1-2, 3)
-                </span>
-              </button>
-            </div>
-
-            {/* Range input if ranges mode */}
-            {splitMode === "ranges" && (
-              <div className="pt-1 space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#556275] block">
-                  Page Ranges or Single Pages
-                </label>
-                <input
-                  type="text"
-                  value={customRange}
-                  onChange={(e) => setCustomRange(e.target.value)}
-                  placeholder="e.g. 1-2, 3, 4-6"
-                  className="w-full px-3 py-2 text-xs font-bold rounded-sm border border-[#D5DCE6] bg-white text-[#111111] focus:outline-none focus:border-[#2860E8] focus:ring-1 focus:ring-[#2860E8] font-mono"
-                />
-                <div className="flex items-start gap-1.5 text-[11px] text-[#556275]">
-                  <Info className="w-3.5 h-3.5 text-[#2860E8] mt-0.5 flex-shrink-0" />
-                  <span>
-                    Separate with commas. For example: &ldquo;1-2, 3, 4-6&rdquo; creates 3 PDFs (pages 1-2, page 3, pages 4-6). Document has {totalPages} pages.
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  disabled={processing}
+                  onClick={() => setSplitMode("ranges")}
+                  className={`p-3 rounded-sm border text-left transition-all ${
+                    splitMode === "ranges"
+                      ? "bg-[#2860E8] text-white border-[#2860E8] shadow-button"
+                      : "bg-white text-[#111111] border-[#D5DCE6] hover:bg-[#F3F6FA]"
+                  }`}
+                >
+                  <div className="font-extrabold text-xs uppercase tracking-wider">
+                    Custom Page Ranges
+                  </div>
+                  <p
+                    className={`text-[11px] mt-0.5 ${
+                      splitMode === "ranges" ? "text-white/80" : "text-[#556275]"
+                    }`}
+                  >
+                    Extract specific pages or segments (e.g. 1-2, 3).
+                  </p>
+                </button>
               </div>
+
+              {/* Custom Range Input */}
+              {splitMode === "ranges" && (
+                <div className="pt-2 space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#111111]">
+                    Page Ranges
+                  </label>
+                  <input
+                    type="text"
+                    value={customRange}
+                    onChange={(e) => setCustomRange(e.target.value)}
+                    disabled={processing}
+                    placeholder="e.g. 1-2, 3"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-sm border border-[#D5DCE6] bg-white text-[#111111] focus:outline-none focus:border-[#2860E8]"
+                  />
+                  <div className="flex items-start gap-1.5 text-[11px] text-[#556275]">
+                    <Info className="w-3.5 h-3.5 text-[#2860E8] flex-shrink-0 mt-0.5" />
+                    <span>
+                      Use commas to separate parts and hyphens for intervals (e.g. &ldquo;1-3, 5&rdquo;). This configuration will be applied to each PDF in the batch.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action button */}
+            {!processing && (
+              <button
+                type="button"
+                onClick={executeBatchSplit}
+                className="w-full py-3.5 px-6 rounded-sm bg-[#2860E8] hover:bg-[#1d4ed8] text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-button transition-all flex items-center justify-center gap-2"
+              >
+                <Scissors className="w-4 h-4" />
+                <span>
+                  {fileItems.length === 1
+                    ? "SPLIT PDF"
+                    : `SPLIT ${fileItems.length} PDFS`}
+                </span>
+              </button>
             )}
           </div>
 
-          {/* Progress bar */}
+          {/* Progress Component */}
           {processing && (
-            <div className="space-y-2 pt-2">
-              <div className="flex items-center justify-between text-xs text-[#556275] font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#2860E8]" />
-                  {progressStatus}
-                </span>
-                <span className="font-mono">{progressPercent}%</span>
-              </div>
-              <div className="w-full h-1.5 bg-[#F3F6FA] border border-[#D5DCE6] overflow-hidden">
-                <div
-                  className="h-full bg-[#2860E8] transition-all duration-300"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div className="p-3.5 rounded-sm bg-red-50 border border-red-200 text-red-700 text-xs font-semibold">
-              {error}
-            </div>
-          )}
-
-          {/* Split action */}
-          {!processing && (
-            <button
-              onClick={handleSplit}
-              className="w-full py-3.5 px-6 rounded-sm bg-[#2860E8] hover:bg-[#1d4ed8] text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-button transition-all flex items-center justify-center gap-2"
-            >
-              <Scissors className="w-4 h-4" />
-              <span>SPLIT PDF DOCUMENT</span>
-            </button>
+            <BatchProgress
+              current={currentFileIndex}
+              total={fileItems.length}
+              overallPercent={overallPercent}
+              currentFileName={currentFileName}
+              statusMessage={progressStatus}
+            />
           )}
         </div>
       )}
 
-      {/* 3. Result State */}
-      {results && file && (
-        <ResultCard
-          title={results.length > 1 ? "Split PDFs Packaged in ZIP" : "Split PDF Ready"}
-          filename={
-            results.length > 1
-              ? `${file.name.replace(/\.pdf$/i, "")}_split.zip`
-              : results[0].filename
-          }
-          resultSize={
-            zipBlob ? zipBlob.size : results[0]?.data.byteLength
-          }
-          onDownload={handleDownload}
-          onReset={handleReset}
-          resetButtonText="Split another PDF"
-          extraStats={[
-            { label: "PDFs Created", value: `${results.length}` },
-            { label: "Source Pages", value: `${totalPages}` },
-          ]}
-        />
+      {/* 3. Results View */}
+      {processedRecords && (
+        <div className="space-y-6">
+          <BatchResultsView
+            title="PDF Splitting Complete"
+            results={batchResultItems}
+            onDownloadAllZip={handleDownloadAllZip}
+            isZipping={isZipping}
+            zipButtonText="Download All as ZIP"
+            onReset={handleReset}
+            resetButtonText="Split More PDFs"
+          />
+        </div>
       )}
     </ToolLayout>
   );
